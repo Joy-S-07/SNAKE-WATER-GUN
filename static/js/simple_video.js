@@ -2205,9 +2205,9 @@ function attachSimpleVideoEventListeners() {
     // Background removal checkbox
     const removeBgCheck = document.getElementById('simpleVideoRemoveBgCheck');
     if (removeBgCheck) {
-        removeBgCheck.checked = state.removeBgBeforeGenerate || false;
+        removeBgCheck.checked = SimpleVideoUI.state.removeBgBeforeGenerate || false;
         removeBgCheck.addEventListener('change', () => {
-            state.removeBgBeforeGenerate = removeBgCheck.checked;
+            SimpleVideoUI.state.removeBgBeforeGenerate = removeBgCheck.checked;
             saveSimpleVideoState();
         });
     }
