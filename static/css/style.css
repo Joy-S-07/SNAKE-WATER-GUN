@@ -7771,6 +7771,14 @@ body.simple-video-enabled #simpleVideoLeft {
     flex: 1 1 auto;
 }
 
+/* Character sheet button - secondary style */
+.simple-video-generate-row .simple-video-sheet-btn {
+    flex: 0 0 auto;
+    font-size: 13px;
+    padding: 10px 14px;
+    background: linear-gradient(135deg, #0e7490, #0891b2);
+}
+
 .simple-video-t2a-actions-row {
     align-items: center;
     gap: 6px;

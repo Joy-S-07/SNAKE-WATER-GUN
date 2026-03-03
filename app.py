@@ -160,6 +160,7 @@ WORKFLOW_NAMES: Dict[str, str] = {
     "qwen_i2i_2512_lightning4": "i2i_qwen_image_2512_lightning_api.json",
     "i2i_qwen_image_edit_2511": "i2i_qwen_image_edit_2511_bf16_api.json",
     "ace_step_1_5_t2a": "audio_ace_step_1_5_api.json",
+    "character_sheet_card_v1_0": "character_sheet_card_v1.0_api.json",
 }
 
 

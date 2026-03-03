@@ -548,6 +548,9 @@ const SimpleVideoUI = {
         // NOTE: This is separate from the video-generation initial frame.
         preparedInitialImage: null, // { jobId, filename, prompt }
 
+        // Character sheet image (generated via キャラクターシートを生成 button)
+        characterSheetImage: null, // { jobId, filename, previewUrl }
+
         // Prepared initial frame for VIDEO generation (reference image + scene prompt -> image)
         // Used by the Video Generate button when available.
         preparedVideoInitialImage: null, // { jobId, filename, prompt, presetId }
@@ -1412,6 +1415,9 @@ function renderSimpleVideoUI() {
             <button class="simple-video-generate-btn" id="simpleVideoImageGenBtn">
                 <i class="fas fa-wand-magic-sparkles"></i> 初期画像を生成
             </button>
+            <button class="simple-video-generate-btn simple-video-sheet-btn" id="simpleVideoCharSheetGenBtn" type="button" title="ref1画像からキャラクターシートを生成し内部参照画像に登録">
+                <i class="fas fa-id-card"></i> キャラクターシート
+            </button>
             <button class="simple-video-stop-btn" id="simpleVideoImageStopBtn" type="button" disabled>
                 <i class="fas fa-stop"></i> 生成中止
             </button>
@@ -2195,6 +2201,15 @@ function attachSimpleVideoEventListeners() {
         });
     }
 
+    // Character sheet generation
+    const charSheetGenBtn = document.getElementById('simpleVideoCharSheetGenBtn');
+    if (charSheetGenBtn) {
+        charSheetGenBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            await generateCharacterSheet();
+        });
+    }
+
     // Scenario helper controls
     const scenarioUseLLM = document.getElementById('simpleVideoScenarioUseLLM');
     if (scenarioUseLLM) {
@@ -2963,6 +2978,7 @@ function attachSimpleVideoEventListeners() {
             characterImage:            'キャラクター合成画像',
             preparedInitialImage:      '準備済み初期画像',
             preparedVideoInitialImage: '準備済み動画初期フレーム',
+            characterSheetImage:       'キャラクターシート',
         };
 
         internalImagesWrap.addEventListener('click', (e) => {
@@ -3007,6 +3023,7 @@ function attachSimpleVideoEventListeners() {
                 SimpleVideoUI.state.characterImage = null;
                 SimpleVideoUI.state.preparedInitialImage = null;
                 SimpleVideoUI.state.preparedVideoInitialImage = null;
+                SimpleVideoUI.state.characterSheetImage = null;
                 saveSimpleVideoState();
                 updateInternalImagesUI();
                 updateGenerateButtonState();
@@ -5983,6 +6000,17 @@ function updateInternalImagesUI() {
                 return getSimpleVideoInputImageURL(v.filename);
             },
         },
+        {
+            key:   'characterSheetImage',
+            label: 'キャラクターシート',
+            icon:  '🏃',
+            value: state.characterSheetImage,
+            getUrl(v) {
+                if (v.previewUrl) return v.previewUrl;
+                if (v.jobId) return getSimpleVideoDownloadURL(v.jobId, v.filename);
+                return getSimpleVideoInputImageURL(v.filename);
+            },
+        },
     ];
 
     const activeItems = items.filter(
@@ -7731,6 +7759,104 @@ function clearSimpleVideoOutput() {
             <div>生成された動画がここに表示されます</div>
         </div>
     `;
+}
+
+async function generateCharacterSheet() {
+    const { state } = SimpleVideoUI;
+    const isBusy = !!(state.isGenerating || state.isPromptGenerating || state.isImageGenerating);
+    if (isBusy) {
+        if (typeof showToast === 'function') showToast('他の処理が実行中です。完了後に実行してください', 'warning');
+        return;
+    }
+
+    // 入力画像: ref1 (dropSlots[0]) → keyImage → uploadedImage の優先順
+    const ref1Slot = Array.isArray(state.dropSlots) ? state.dropSlots[0] : null;
+    const inputFilename = ref1Slot?.filename
+        || state.keyImage?.filename
+        || state.uploadedImage?.filename
+        || null;
+
+    if (!inputFilename) {
+        if (typeof showToast === 'function') showToast('📥 ref1（画像ドロップ欄）に参照画像をセットしてください', 'warning');
+        return;
+    }
+
+    const api = window.app?.api;
+    if (!api || typeof api.generate !== 'function' || typeof api.monitorProgress !== 'function') {
+        if (typeof showToast === 'function') showToast('APIが利用できません', 'error');
+        return;
+    }
+
+    const sheetBtn = document.getElementById('simpleVideoCharSheetGenBtn');
+    const imgStopBtn = document.getElementById('simpleVideoImageStopBtn');
+
+    state.isImageGenerating = true;
+    saveSimpleVideoState();
+    updateGenerateButtonState();
+    if (sheetBtn) { sheetBtn.disabled = true; sheetBtn.textContent = '⏳ 生成中...'; }
+    if (imgStopBtn) imgStopBtn.disabled = false;
+    setSimpleVideoProgressVisible(true);
+    setSimpleVideoProgress('🎭 キャラクターシート生成: 準備中...', 0);
+
+    try {
+        const res = await runWorkflowStep({
+            workflow: 'character_sheet_card_v1_0',
+            label: 'キャラクターシート生成',
+            requestParams: { input_image: inputFilename },
+            stepIndex: 0,
+            totalSteps: 1,
+        });
+
+        // カード画像（CharSheet-CARD プレフィックス）を優先して取得
+        const outputs = Array.isArray(res.outputs) ? res.outputs : [];
+        const cardOut = outputs.find((o) =>
+            String(o?.filename || '').includes('CharSheet-CARD')
+        ) || outputs.filter((o) =>
+            String(o?.media_type || '').toLowerCase() === 'image'
+            || /\.(png|jpg|jpeg|webp)$/i.test(String(o?.filename || ''))
+        ).pop() || null;
+
+        if (!cardOut?.filename) throw new Error('キャラクターシート画像の出力が見つかりませんでした');
+
+        const previewUrl = getSimpleVideoDownloadURL(res.jobId, cardOut.filename);
+
+        state.characterSheetImage = {
+            jobId: String(res.jobId),
+            filename: String(cardOut.filename),
+            previewUrl,
+        };
+
+        saveSimpleVideoState();
+        updateInternalImagesUI();
+        updateSimpleVideoUI();
+
+        setSimpleVideoProgress('✅ キャラクターシート生成完了', 1);
+        if (typeof showToast === 'function') showToast('✅ キャラクターシートを生成しました（内部参照画像に登録）', 'success');
+
+        // 生成結果をモーダルで表示
+        if (typeof showSimpleVideoImageModal === 'function') {
+            showSimpleVideoImageModal(previewUrl, '🎭 キャラクターシート');
+        }
+    } catch (err) {
+        console.error('[SimpleVideo] Character sheet generation error:', err);
+        const msg = String(err?.message || err || 'Character sheet generation failed');
+        if (msg === 'Cancelled') {
+            setSimpleVideoProgress('⏹ 中止しました', 0);
+            if (typeof showToast === 'function') showToast('キャラクターシート生成を中止しました', 'warning');
+        } else {
+            setSimpleVideoProgress(`エラー: ${msg}`, 0);
+            if (typeof showToast === 'function') showToast(msg, 'error');
+        }
+    } finally {
+        state.isImageGenerating = false;
+        saveSimpleVideoState();
+        updateGenerateButtonState();
+        if (sheetBtn) {
+            sheetBtn.disabled = false;
+            sheetBtn.innerHTML = '<i class="fas fa-id-card"></i> キャラクターシート';
+        }
+        if (imgStopBtn) imgStopBtn.disabled = true;
+    }
 }
 
 async function startInitialImageGeneration() {
