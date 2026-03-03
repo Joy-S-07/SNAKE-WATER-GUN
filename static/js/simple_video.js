@@ -8476,10 +8476,7 @@ async function startIntermediateImageGeneration(options = {}) {
 
         // Determine ref3 usage for scene I2I
         const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflowFromRef3 } = computeRef3SceneI2IConfig(i2iWorkflowBase);
-        // When character sheet is the reference, force 2512 pure-I2I mode (not EDIT) to avoid reproducing the multi-panel sheet layout
-        const i2iWorkflow = (state.useCharSheetAsRef && !!state.characterSheetImage?.filename)
-            ? normalizeWorkflowAlias('qwen_i2i_2512_lightning4')
-            : i2iWorkflowFromRef3;
+        const i2iWorkflow = i2iWorkflowFromRef3;
 
         const missingIndexes = [];
         for (let i = 0; i < sceneCount; i++) {
@@ -9875,11 +9872,15 @@ function computeRef3SceneI2IConfig(baseWorkflow) {
  * @returns {string} hint text to prepend to prompt
  */
 function buildCharSheetRefPromptHint() {
+    // Must start with "Edit picture 1" so wrapQwen2511EditInstructionPrompt() recognises it
+    // as a complete instruction and does NOT prepend "Preserve the subject identity and overall
+    // composition" (which would cause the model to reproduce the multi-panel sheet layout).
     return [
-        'IMPORTANT: The reference image is a CHARACTER SHEET (multi-view reference sheet) showing the same character from multiple angles (front, back, side, three-quarter, etc.).',
-        'Do NOT reproduce the character sheet layout. Do NOT output multiple panels or multiple views.',
-        'Generate ONE single scene image of this character in the described setting.',
-        'Use the character sheet only to extract the character identity: face, hair, clothing, colors, body proportions.',
+        'Edit picture 1 to show this character in the scene described below.',
+        'Picture 1 is a CHARACTER SHEET (multi-view reference showing the character from multiple angles: front, back, side, etc.).',
+        'Use it ONLY to extract character identity: face, hair style, clothing, colors, body proportions.',
+        'Generate ONE single scene image. Do NOT reproduce the character sheet layout.',
+        'Do NOT output multiple panels, multiple views, or any reference sheet format.',
     ].join(' ');
 }
 
@@ -10663,10 +10664,7 @@ async function startGeneration() {
 
             // ref3 scene I2I config
             const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflowFromRef3d } = computeRef3SceneI2IConfig(i2iWorkflowBase);
-            // When character sheet is the reference, force 2512 pure-I2I mode (not EDIT)
-            const i2iWorkflow = (state.useCharSheetAsRef && !!state.characterSheetImage?.filename)
-                ? normalizeWorkflowAlias('qwen_i2i_2512_lightning4')
-                : i2iWorkflowFromRef3d;
+            const i2iWorkflow = i2iWorkflowFromRef3d;
 
             // FLF品質設定: speed=4-step(高速), quality=20-step(高品質)
             const flfWorkflow = state.flfQuality === 'quality' ? 'wan22_flf2v' : 'wan22_smooth_first2last';
@@ -10956,10 +10954,7 @@ async function startGeneration() {
 
             // ref3 scene I2I config
             const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflowFromRef3e } = computeRef3SceneI2IConfig(i2iWorkflowBase);
-            // When character sheet is the reference, force 2512 pure-I2I mode (not EDIT)
-            const i2iWorkflow = (state.useCharSheetAsRef && !!state.characterSheetImage?.filename)
-                ? normalizeWorkflowAlias('qwen_i2i_2512_lightning4')
-                : i2iWorkflowFromRef3e;
+            const i2iWorkflow = i2iWorkflowFromRef3e;
 
             // FLF品質設定: speed=4-step(高速), quality=20-step(高品質)
             const flfWorkflow = state.flfQuality === 'quality' ? 'wan22_flf2v' : 'wan22_smooth_first2last';
@@ -11256,10 +11251,7 @@ async function startGeneration() {
 
             // ref3 scene I2I config
             const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflowFromRef3c } = computeRef3SceneI2IConfig(i2iWorkflowBase);
-            // When character sheet is the reference, force 2512 pure-I2I mode (not EDIT)
-            const i2iWorkflow = (state.useCharSheetAsRef && !!state.characterSheetImage?.filename)
-                ? normalizeWorkflowAlias('qwen_i2i_2512_lightning4')
-                : i2iWorkflowFromRef3c;
+            const i2iWorkflow = i2iWorkflowFromRef3c;
 
             // I2V workflow (LTX option applies here since no FLF)
             const i2vWorkflow = applyWorkflowSpeedOption('wan22_i2v_lightning', !!state.useFast);
