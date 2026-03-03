@@ -65,18 +65,36 @@ def _find_comfyui_dir() -> Optional[Path]:
       1. COMFYUI_DIR 環境変数
       2. BASE_DIR から上位ディレクトリを最大8段階探索
          (マーカー: comfyui_version.py  または  main.py + comfy/ サブディレクトリ)
+      3. 各階層の兄弟ディレクトリも探索
+         (名前が ComfyUI* / comfyui* にマッチするものを優先チェック)
     """
+    def _is_comfyui(p: Path) -> bool:
+        return p.is_dir() and (
+            (p / "comfyui_version.py").exists()
+            or ((p / "main.py").exists() and (p / "comfy").is_dir())
+        )
+
     env_val = str(os.environ.get("COMFYUI_DIR", "")).strip()
     if env_val:
         p = Path(env_val).expanduser()
         if p.is_dir():
             return p.resolve()
+
     candidate = BASE_DIR.parent
     for _ in range(8):
-        if (candidate / "comfyui_version.py").exists() or (
-            (candidate / "main.py").exists() and (candidate / "comfy").is_dir()
-        ):
+        # 自分自身（親ディレクトリ）を確認
+        if _is_comfyui(candidate):
             return candidate.resolve()
+        # 兄弟ディレクトリを探索（ComfyUI* 優先、その後全部）
+        try:
+            siblings = sorted(candidate.iterdir())
+            named = [d for d in siblings if d.is_dir() and d.name.lower().startswith("comfyui")]
+            others = [d for d in siblings if d.is_dir() and not d.name.lower().startswith("comfyui")]
+            for sibling in named + others:
+                if _is_comfyui(sibling):
+                    return sibling.resolve()
+        except PermissionError:
+            pass
         parent = candidate.parent
         if parent == candidate:
             break
