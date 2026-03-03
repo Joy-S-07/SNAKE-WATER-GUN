@@ -554,6 +554,9 @@ const SimpleVideoUI = {
         // Whether to run background removal before initial image / character sheet generation
         removeBgBeforeGenerate: false,
 
+        // Whether to run RMBG preprocessing + use no-bg workflow for character sheet generation
+        charSheetNobg: false,
+
         // Prepared initial frame for VIDEO generation (reference image + scene prompt -> image)
         // Used by the Video Generate button when available.
         preparedVideoInitialImage: null, // { jobId, filename, prompt, presetId }
@@ -751,6 +754,9 @@ function loadSimpleVideoState() {
 
             // Background removal option
             SimpleVideoUI.state.removeBgBeforeGenerate = !!parsed.removeBgBeforeGenerate;
+
+            // Character sheet no-bg option
+            SimpleVideoUI.state.charSheetNobg = !!parsed.charSheetNobg;
         }
     } catch (_e) {
         console.warn('[SimpleVideo] Failed to load state');
@@ -1425,6 +1431,10 @@ function renderSimpleVideoUI() {
             <button class="simple-video-generate-btn" id="simpleVideoImageGenBtn">
                 <i class="fas fa-wand-magic-sparkles"></i> 初期画像を生成
             </button>
+            <label class="simple-video-charsheet-nobg-label" title="キャラクターシート生成前に背景を削除し、背景なしモデルで生成します">
+                <input type="checkbox" id="simpleVideoCharSheetNobgCheck">
+                <i class="fas fa-eraser"></i> 背景なし
+            </label>
             <button class="simple-video-generate-btn simple-video-sheet-btn" id="simpleVideoCharSheetGenBtn" type="button" title="ref1画像からキャラクターシートを生成し内部参照画像に登録">
                 <i class="fas fa-id-card"></i> キャラクターシート
             </button>
@@ -2218,6 +2228,16 @@ function attachSimpleVideoEventListeners() {
         imgGenBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             await startInitialImageGeneration();
+        });
+    }
+
+    // Character sheet no-bg checkbox
+    const charSheetNobgCheck = document.getElementById('simpleVideoCharSheetNobgCheck');
+    if (charSheetNobgCheck) {
+        charSheetNobgCheck.checked = SimpleVideoUI.state.charSheetNobg || false;
+        charSheetNobgCheck.addEventListener('change', () => {
+            SimpleVideoUI.state.charSheetNobg = charSheetNobgCheck.checked;
+            saveSimpleVideoState();
         });
     }
 
@@ -7786,9 +7806,9 @@ function clearSimpleVideoOutput() {
  * filename and returns the resulting output filename.  Otherwise returns the original
  * filename unchanged.  Throws on error.
  */
-async function removeBackgroundIfEnabled(inputFilename) {
+async function removeBackgroundIfEnabled(inputFilename, forceRun = false) {
     const { state } = SimpleVideoUI;
-    if (!state.removeBgBeforeGenerate) return inputFilename;
+    if (!forceRun && !state.removeBgBeforeGenerate) return inputFilename;
     if (!inputFilename) return inputFilename;
 
     setSimpleVideoProgress('🖼️ 背景削除中...', 0);
@@ -7850,13 +7870,19 @@ async function generateCharacterSheet() {
     setSimpleVideoProgress('🎭 キャラクターシート生成: 準備中...', 0);
 
     try {
-        const effectiveFilename = await removeBackgroundIfEnabled(inputFilename);
+        const useNobg = state.charSheetNobg;
+        // charSheetNobg=true: force RMBG pre-process regardless of removeBgBeforeGenerate
+        const effectiveFilename = await removeBackgroundIfEnabled(inputFilename, useNobg);
+        const isMultiStep = useNobg || state.removeBgBeforeGenerate;
+        const workflowName = useNobg
+            ? 'character_sheet_card_v1_0_nobg'
+            : 'character_sheet_card_v1_0';
         const res = await runWorkflowStep({
-            workflow: 'character_sheet_card_v1_0',
+            workflow: workflowName,
             label: 'キャラクターシート生成',
             requestParams: { input_image: effectiveFilename },
-            stepIndex: state.removeBgBeforeGenerate ? 1 : 0,
-            totalSteps: state.removeBgBeforeGenerate ? 2 : 1,
+            stepIndex: isMultiStep ? 1 : 0,
+            totalSteps: isMultiStep ? 2 : 1,
         });
 
         // カード画像（CharSheet-CARD プレフィックス）を優先して取得

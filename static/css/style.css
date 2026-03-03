@@ -7816,6 +7816,43 @@ body.simple-video-enabled #simpleVideoLeft {
     color: #06b6d4;
 }
 
+/* Character sheet no-bg checkbox label */
+.simple-video-generate-row .simple-video-charsheet-nobg-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary, #a0a0b0);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.2s, background 0.2s, color 0.2s;
+    white-space: nowrap;
+    order: 2;
+}
+.simple-video-generate-row .simple-video-charsheet-nobg-label:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.10);
+    color: #fff;
+}
+.simple-video-generate-row .simple-video-charsheet-nobg-label input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: #818cf8;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.simple-video-generate-row .simple-video-charsheet-nobg-label:has(input:checked) {
+    border-color: #818cf8;
+    background: rgba(129, 140, 248, 0.12);
+    color: #818cf8;
+}
+
 .simple-video-t2a-actions-row {
     align-items: center;
     gap: 6px;
