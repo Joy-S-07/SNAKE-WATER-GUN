@@ -9924,6 +9924,7 @@ function buildCharSheetRefPromptHint() {
         'Edit picture 1 to produce exactly ONE single still scene image as described below.',
         'Use picture 1 only to extract the character appearance — do NOT reproduce its layout, composition, or panel structure.',
         'Output exactly one image. Do NOT create split panels, before/after views, multiple frames, or any time-lapse or transition layout.',
+        'The character from picture 1 must appear EXACTLY ONCE in the scene. Do NOT duplicate, clone, or repeat the character.',
         'Scene:',
     ].join(' ');
 }
