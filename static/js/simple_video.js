@@ -558,11 +558,6 @@ const SimpleVideoUI = {
         // Whether to run RMBG preprocessing + use no-bg workflow for character sheet generation
         charSheetNobg: false,
 
-        // Whether to use characterSheetImage as the primary scene I2I reference instead of characterImage
-        useCharSheetAsRef: false,
-        // Workflow to use when charsheet is active reference (can differ from main i2iRefineWorkflow)
-        charSheetRefWorkflow: 'qwen_i2i_2511_bf16_lightning4',
-
         // Prepared initial frame for VIDEO generation (reference image + scene prompt -> image)
         // Used by the Video Generate button when available.
         preparedVideoInitialImage: null, // { jobId, filename, prompt, presetId }
@@ -766,9 +761,6 @@ function loadSimpleVideoState() {
             // Character sheet no-bg option
             SimpleVideoUI.state.charSheetNobg = !!parsed.charSheetNobg;
 
-            // Whether to use character sheet as scene I2I reference
-            SimpleVideoUI.state.useCharSheetAsRef = !!parsed.useCharSheetAsRef;
-            SimpleVideoUI.state.charSheetRefWorkflow = String(parsed.charSheetRefWorkflow || 'qwen_i2i_2511_bf16_lightning4');
         }
     } catch (_e) {
         console.warn('[SimpleVideo] Failed to load state');
@@ -1176,8 +1168,6 @@ function saveSimpleVideoState() {
 
             // Character sheet image (generated via キャラクターシートを生成)
             characterSheetImage: SimpleVideoUI.state.characterSheetImage,
-            useCharSheetAsRef: !!SimpleVideoUI.state.useCharSheetAsRef,
-            charSheetRefWorkflow: String(SimpleVideoUI.state.charSheetRefWorkflow || 'qwen_i2i_2511_bf16_lightning4'),
 
             // Background removal options
             removeBgBeforeGenerate: !!SimpleVideoUI.state.removeBgBeforeGenerate,
@@ -1778,14 +1768,6 @@ function renderSimpleVideoUI() {
             <div id="simpleVideoInternalImagesContent">
                 <div class="simple-video-hint">自動生成・準備済みの内部参照画像（確認・クリア用）。✕で個別削除できます。</div>
                 <div id="simpleVideoInternalImagesGrid"></div>
-                <div id="simpleVideoCharSheetWorkflowRow" class="simple-video-charsheet-workflow-row" style="display:none;">
-                    <label for="simpleVideoCharSheetWorkflowSelect">🔧 参照モデル:</label>
-                    <select id="simpleVideoCharSheetWorkflowSelect" class="simple-video-select">
-                        <option value="qwen_i2i_2511_bf16_lightning4">2511 EDIT 4-step（編集モード）</option>
-                        <option value="qwen_i2i_2512_lightning4">2512 I2I 4-step（高品質）</option>
-                    </select>
-                    <span class="simple-video-hint" id="simpleVideoCharSheetWorkflowHint"></span>
-                </div>
             </div>
         </div>
 
@@ -2272,16 +2254,6 @@ function attachSimpleVideoEventListeners() {
         charSheetNobgCheck.addEventListener('change', () => {
             SimpleVideoUI.state.charSheetNobg = charSheetNobgCheck.checked;
             saveSimpleVideoState();
-        });
-    }
-
-    // Charsheet reference workflow selector
-    const charSheetWorkflowSelect = document.getElementById('simpleVideoCharSheetWorkflowSelect');
-    if (charSheetWorkflowSelect) {
-        charSheetWorkflowSelect.addEventListener('change', () => {
-            SimpleVideoUI.state.charSheetRefWorkflow = charSheetWorkflowSelect.value;
-            saveSimpleVideoState();
-            updateInternalImagesUI();
         });
     }
 
@@ -3089,19 +3061,6 @@ function attachSimpleVideoEventListeners() {
                 updateInternalImagesUI();
                 updateGenerateButtonState();
                 if (typeof showToast === 'function') showToast(`${label}をクリアしました`, 'info');
-                return;
-            }
-
-            // "Use as reference" toggle — select characterImage or characterSheetImage as scene I2I reference
-            const useRefBtn = e.target.closest('.simple-video-internal-image-use-ref');
-            if (useRefBtn && !useRefBtn.classList.contains('static')) {
-                e.preventDefault();
-                const key = useRefBtn.dataset.key;
-                SimpleVideoUI.state.useCharSheetAsRef = (key === 'characterSheetImage');
-                saveSimpleVideoState();
-                updateInternalImagesUI();
-                const label = key === 'characterSheetImage' ? 'キャラクターシート' : 'キャラクター合成画像';
-                if (typeof showToast === 'function') showToast(`シーンI2I参照: ${label} を使用します`, 'info');
                 return;
             }
 
@@ -6134,11 +6093,6 @@ function updateInternalImagesUI() {
     // Always show the section — images persist across reloads and can be cleared individually
     wrap.style.display = '';
 
-    // Determine ref-toggle state based on items that have actual images
-    const hasCharImage  = !!String(state.characterImage?.filename  || '').trim();
-    const hasSheetImage = !!String(state.characterSheetImage?.filename || '').trim();
-    const hasBothRefItems = hasCharImage && hasSheetImage;
-
     grid.innerHTML = items
         .map((item) => {
             const v = item.value;
@@ -6146,26 +6100,14 @@ function updateInternalImagesUI() {
 
             // ---- empty slot ----
             if (!hasImage) {
-                // For ref items, still show the slot so the toggle is always visible in context
-                const isRefItem = item.key === 'characterImage' || item.key === 'characterSheetImage';
-                const isActiveRef = isRefItem && (
-                    (item.key === 'characterSheetImage' &&  state.useCharSheetAsRef) ||
-                    (item.key === 'characterImage'       && !state.useCharSheetAsRef)
-                );
-                // Show a "use as reference" toggle on empty ref slots only when the OTHER ref slot has an image
-                let refBadgeHtml = '';
-                if (isRefItem && hasBothRefItems) {
-                    refBadgeHtml = `<button class="simple-video-internal-image-use-ref${isActiveRef ? ' active' : ''}" data-key="${escapeHtml(item.key)}" type="button" title="シーンI2I参照として優先使用">${isActiveRef ? '📌 参照中' : '参照に使用'}</button>`;
-                }
                 return `
-            <div class="simple-video-internal-image-item empty-slot${isActiveRef && hasBothRefItems ? ' active-ref' : ''}" data-key="${escapeHtml(item.key)}">
+            <div class="simple-video-internal-image-item empty-slot" data-key="${escapeHtml(item.key)}">
                 <div class="simple-video-internal-image-thumb-wrap empty">
                     <span class="simple-video-internal-image-empty-icon">${escapeHtml(item.icon)}</span>
                 </div>
                 <div class="simple-video-internal-image-info">
                     <div class="simple-video-internal-image-label">${escapeHtml(item.icon)} ${escapeHtml(item.label)}</div>
                     <div class="simple-video-internal-image-filename muted">（未生成）</div>
-                    ${refBadgeHtml}
                 </div>
             </div>`;
             }
@@ -6178,24 +6120,8 @@ function updateInternalImagesUI() {
                 ? escapeHtml(p.length > 80 ? p.substring(0, 80) + '…' : p)
                 : '';
 
-            const isRefItem = item.key === 'characterImage' || item.key === 'characterSheetImage';
-            const isActiveRef = isRefItem && (
-                (item.key === 'characterSheetImage' &&  state.useCharSheetAsRef) ||
-                (item.key === 'characterImage'       && !state.useCharSheetAsRef)
-            );
-            let refBadgeHtml = '';
-            if (isRefItem) {
-                if (hasBothRefItems) {
-                    // Both exist: show clickable toggle
-                    refBadgeHtml = `<button class="simple-video-internal-image-use-ref${isActiveRef ? ' active' : ''}" data-key="${escapeHtml(item.key)}" type="button" title="シーンI2I参照として優先使用">${isActiveRef ? '📌 参照中' : '参照に使用'}</button>`;
-                } else {
-                    // Only one has image: always-active static badge
-                    refBadgeHtml = `<span class="simple-video-internal-image-use-ref active static">📌 参照中</span>`;
-                }
-            }
-
             return `
-            <div class="simple-video-internal-image-item${isActiveRef ? ' active-ref' : ''}" data-key="${escapeHtml(item.key)}">
+            <div class="simple-video-internal-image-item" data-key="${escapeHtml(item.key)}">
                 <div class="simple-video-internal-image-thumb-wrap" title="クリックで拡大">
                     <img class="simple-video-internal-image-thumb" src="${escapeHtml(imgUrl)}" alt="${escapeHtml(item.label)}" loading="eager" />
                 </div>
@@ -6203,26 +6129,11 @@ function updateInternalImagesUI() {
                     <div class="simple-video-internal-image-label">${escapeHtml(item.icon)} ${escapeHtml(item.label)}</div>
                     <div class="simple-video-internal-image-filename" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
                     ${promptSnippet ? `<div class="simple-video-internal-image-prompt">${promptSnippet}</div>` : ''}
-                    ${refBadgeHtml}
                 </div>
                 <button class="simple-video-internal-image-clear" data-key="${escapeHtml(item.key)}" type="button" title="${escapeHtml(item.label)}をクリア">✕</button>
             </div>`;
         })
         .join('');
-
-    // Show/hide charsheet workflow selector row
-    const charSheetWorkflowRow = document.getElementById('simpleVideoCharSheetWorkflowRow');
-    if (charSheetWorkflowRow) {
-        charSheetWorkflowRow.style.display = state.useCharSheetAsRef ? '' : 'none';
-        const sel = document.getElementById('simpleVideoCharSheetWorkflowSelect');
-        if (sel) sel.value = state.charSheetRefWorkflow || 'qwen_i2i_2511_bf16_lightning4';
-        const hint = document.getElementById('simpleVideoCharSheetWorkflowHint');
-        if (hint) {
-            hint.textContent = (state.charSheetRefWorkflow === 'qwen_i2i_2512_lightning4')
-                ? '2512: プロンプトのみで生成。キャラ外見を保持しない場合はdenoise/CFGを調整'
-                : '2511: EDITモード。プロンプトに従いつつキャラ外見を参照絵から反映';
-        }
-    }
 }
 
 function renderSimpleVideoIntermediateImagesUI() {
@@ -8513,11 +8424,7 @@ async function startIntermediateImageGeneration(options = {}) {
 
         // Determine ref3 usage for scene I2I
         const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflowFromRef3 } = computeRef3SceneI2IConfig(i2iWorkflowBase);
-        let i2iWorkflow = i2iWorkflowFromRef3;
-        // When charsheet is active reference, use its own dedicated workflow
-        if (state.useCharSheetAsRef && !!state.characterSheetImage?.filename) {
-            i2iWorkflow = normalizeWorkflowAlias(state.charSheetRefWorkflow || 'qwen_i2i_2511_bf16_lightning4');
-        }
+        const i2iWorkflow = i2iWorkflowFromRef3;
 
         const missingIndexes = [];
         for (let i = 0; i < sceneCount; i++) {
@@ -8557,15 +8464,10 @@ async function startIntermediateImageGeneration(options = {}) {
         }
 
         // For presets that need a character composite image, determine reference source.
-        // If useCharSheetAsRef is set and characterSheetImage exists, use it; otherwise fall back to characterImage / key image / dropSlots[0].
         const usesCharacterImage = !!preset.requiresCharacterImage;
-        const useSheetAsRef = usesCharacterImage && state.useCharSheetAsRef && !!state.characterSheetImage?.filename;
         let effectiveRefImage = null;
         if (usesCharacterImage) {
-            if (useSheetAsRef) {
-                effectiveRefImage = state.characterSheetImage.filename;
-                console.log('[SimpleVideo] useCharSheetAsRef=true: キャラクターシートを参照に使用');
-            } else if (state.characterImage?.filename) {
+            if (state.characterImage?.filename) {
                 effectiveRefImage = state.characterImage.filename;
             } else if (state.uploadedImage?.filename) {
                 effectiveRefImage = state.uploadedImage.filename;
@@ -8663,13 +8565,6 @@ async function startIntermediateImageGeneration(options = {}) {
                         imgIndex++;
                     }
                 }
-            }
-
-            // When using character sheet as reference, prepend hint before wrap so
-            // wrapQwen2511EditInstructionPrompt detects 'picture 1' and skips 'Preserve composition'.
-            // For 2512 I2I mode, the charsheet hint is not injected (pass prompt as-is).
-            if (usesCharacterImage && useSheetAsRef && isQwen2511ImageEditWorkflowId(i2iWorkflow)) {
-                params.prompt = buildCharSheetRefPromptHint() + '\n' + params.prompt;
             }
 
             if (isQwen2511ImageEditWorkflowId(i2iWorkflow)) {
@@ -9909,25 +9804,6 @@ function computeRef3SceneI2IConfig(baseWorkflow) {
     return { ref3Active, ref3Mode, adjustedWorkflow, ref3Filename: ref3Slot?.filename || null };
 }
 
-/**
- * Build a prompt hint indicating the reference image is a multi-angle character sheet.
- * Prepend this to scene prompts when useCharSheetAsRef is active.
- * @returns {string} hint text to prepend to prompt
- */
-function buildCharSheetRefPromptHint() {
-    // Starts with "Edit picture 1" so wrapQwen2511EditInstructionPrompt() detects it
-    // and skips its "Preserve composition" prefix (which would cause the model to
-    // reproduce the multi-panel character-sheet layout).
-    // The hint also guards explicitly against time-lapse / before-after / split-panel
-    // prompts that would otherwise produce multi-frame output.
-    return [
-        'Edit picture 1 to produce exactly ONE single still scene image as described below.',
-        'Use picture 1 only to extract the character appearance — do NOT reproduce its layout, composition, or panel structure.',
-        'Output exactly one image. Do NOT create split panels, before/after views, multiple frames, or any time-lapse or transition layout.',
-        'The character from picture 1 must appear EXACTLY ONCE in the scene. Do NOT duplicate, clone, or repeat the character.',
-        'Scene:',
-    ].join(' ');
-}
 
 /**
  * Build ref3 prompt hint based on mode.
@@ -10709,11 +10585,7 @@ async function startGeneration() {
 
             // ref3 scene I2I config
             const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflowFromRef3d } = computeRef3SceneI2IConfig(i2iWorkflowBase);
-            let i2iWorkflow = i2iWorkflowFromRef3d;
-            // If charsheet is active reference, use its dedicated workflow
-            if (state.useCharSheetAsRef && !!state.characterSheetImage?.filename) {
-                i2iWorkflow = normalizeWorkflowAlias(state.charSheetRefWorkflow || 'qwen_i2i_2511_bf16_lightning4');
-            }
+            const i2iWorkflow = i2iWorkflowFromRef3d;
 
             // FLF品質設定: speed=4-step(高速), quality=20-step(高品質)
             const flfWorkflow = state.flfQuality === 'quality' ? 'wan22_flf2v' : 'wan22_smooth_first2last';
@@ -11003,11 +10875,7 @@ async function startGeneration() {
 
             // ref3 scene I2I config
             const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflowFromRef3e } = computeRef3SceneI2IConfig(i2iWorkflowBase);
-            let i2iWorkflow = i2iWorkflowFromRef3e;
-            // If charsheet is active reference, use its dedicated workflow
-            if (state.useCharSheetAsRef && !!state.characterSheetImage?.filename) {
-                i2iWorkflow = normalizeWorkflowAlias(state.charSheetRefWorkflow || 'qwen_i2i_2511_bf16_lightning4');
-            }
+            const i2iWorkflow = i2iWorkflowFromRef3e;
 
             // FLF品質設定: speed=4-step(高速), quality=20-step(高品質)
             const flfWorkflow = state.flfQuality === 'quality' ? 'wan22_flf2v' : 'wan22_smooth_first2last';
@@ -11042,11 +10910,7 @@ async function startGeneration() {
             const sceneImagePrompts = []; // Track prompts synchronized with sceneImages
             let stepCursor = 0;
 
-            // Determine effective reference: character sheet takes priority when useCharSheetAsRef is set
-            const useSheetAsRef2 = state.useCharSheetAsRef && !!state.characterSheetImage?.filename;
-            const characterImageFilename = useSheetAsRef2
-                ? state.characterSheetImage.filename
-                : (state.characterImage?.filename || fallbackRefImage || null);
+            const characterImageFilename = state.characterImage?.filename || fallbackRefImage || null;
             const refSource = normalizeI2IRefSource(state.i2iRefSource);
             let firstSceneImageFilename = null;
 
@@ -11089,11 +10953,6 @@ async function startGeneration() {
                     params.input_image_2 = state.dropSlots[2].filename;
                     const hint = buildRef3PromptHint(ref3Mode, 2);
                     if (hint) params.prompt = hint + '\n' + params.prompt;
-                }
-
-                // When using character sheet as reference, prepend hint before wrap (EDIT mode only).
-                if (useSheetAsRef2 && isQwen2511ImageEditWorkflowId(i2iWorkflow)) {
-                    params.prompt = buildCharSheetRefPromptHint() + '\n' + params.prompt;
                 }
 
                 // For Qwen 2512 (I2I), use prompt as-is (not EDIT instruction)
@@ -11304,11 +11163,7 @@ async function startGeneration() {
 
             // ref3 scene I2I config
             const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflowFromRef3c } = computeRef3SceneI2IConfig(i2iWorkflowBase);
-            let i2iWorkflow = i2iWorkflowFromRef3c;
-            // If charsheet is active reference, use its dedicated workflow
-            if (state.useCharSheetAsRef && !!state.characterSheetImage?.filename) {
-                i2iWorkflow = normalizeWorkflowAlias(state.charSheetRefWorkflow || 'qwen_i2i_2511_bf16_lightning4');
-            }
+            const i2iWorkflow = i2iWorkflowFromRef3c;
 
             // I2V workflow (LTX option applies here since no FLF)
             const i2vWorkflow = applyWorkflowSpeedOption('wan22_i2v_lightning', !!state.useFast);
@@ -11341,11 +11196,7 @@ async function startGeneration() {
             const sceneImages = [];
             let stepCursor = 0;
 
-            // Determine effective reference: character sheet takes priority when useCharSheetAsRef is set
-            const useSheetAsRef3 = state.useCharSheetAsRef && !!state.characterSheetImage?.filename;
-            const characterImageFilename = useSheetAsRef3
-                ? state.characterSheetImage.filename
-                : (state.characterImage?.filename || fallbackRefImage || null);
+            const characterImageFilename = state.characterImage?.filename || fallbackRefImage || null;
             const refSource = normalizeI2IRefSource(state.i2iRefSource);
             let firstSceneImageFilename = null;
 
@@ -11387,11 +11238,6 @@ async function startGeneration() {
                     params.input_image_2 = state.dropSlots[2].filename;
                     const hint = buildRef3PromptHint(ref3Mode, 2);
                     if (hint) params.prompt = hint + '\n' + params.prompt;
-                }
-
-                // When using character sheet as reference, prepend hint before wrap (EDIT mode only).
-                if (useSheetAsRef3 && isQwen2511ImageEditWorkflowId(i2iWorkflow)) {
-                    params.prompt = buildCharSheetRefPromptHint() + '\n' + params.prompt;
                 }
 
                 if (isQwen2511ImageEditWorkflowId(i2iWorkflow)) {
