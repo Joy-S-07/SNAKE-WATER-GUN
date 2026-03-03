@@ -1760,7 +1760,7 @@ function renderSimpleVideoUI() {
             <textarea class="simple-video-prompt" id="simpleVideoScenario" placeholder="どんな動画を作りたい？"></textarea>
         </div>
 
-        <div class="simple-video-section" id="simpleVideoInternalImagesWrap" style="display:none;">
+        <div class="simple-video-section" id="simpleVideoInternalImagesWrap">
             <div class="simple-video-section-title with-actions">
                 <span class="title-left"><i class="fas fa-image"></i> 📸 内部参照画像</span>
                 <div class="simple-video-scenario-actions" aria-label="内部参照画像操作">
@@ -6082,25 +6082,46 @@ function updateInternalImagesUI() {
         },
     ];
 
-    const activeItems = items.filter(
-        (item) => !!String(item.value?.filename || '').trim()
-    );
-
-    if (activeItems.length === 0) {
-        wrap.style.display = 'none';
-        return;
-    }
-
+    // Always show the section — images persist across reloads and can be cleared individually
     wrap.style.display = '';
 
-    // Determine which items support the "use as scene I2I reference" toggle
-    const hasCharImage  = activeItems.some((i) => i.key === 'characterImage');
-    const hasSheetImage = activeItems.some((i) => i.key === 'characterSheetImage');
+    // Determine ref-toggle state based on items that have actual images
+    const hasCharImage  = !!String(state.characterImage?.filename  || '').trim();
+    const hasSheetImage = !!String(state.characterSheetImage?.filename || '').trim();
     const hasBothRefItems = hasCharImage && hasSheetImage;
 
-    grid.innerHTML = activeItems
+    grid.innerHTML = items
         .map((item) => {
             const v = item.value;
+            const hasImage = !!String(v?.filename || '').trim();
+
+            // ---- empty slot ----
+            if (!hasImage) {
+                // For ref items, still show the slot so the toggle is always visible in context
+                const isRefItem = item.key === 'characterImage' || item.key === 'characterSheetImage';
+                const isActiveRef = isRefItem && (
+                    (item.key === 'characterSheetImage' &&  state.useCharSheetAsRef) ||
+                    (item.key === 'characterImage'       && !state.useCharSheetAsRef)
+                );
+                // Show a "use as reference" toggle on empty ref slots only when the OTHER ref slot has an image
+                let refBadgeHtml = '';
+                if (isRefItem && hasBothRefItems) {
+                    refBadgeHtml = `<button class="simple-video-internal-image-use-ref${isActiveRef ? ' active' : ''}" data-key="${escapeHtml(item.key)}" type="button" title="シーンI2I参照として優先使用">${isActiveRef ? '📌 参照中' : '参照に使用'}</button>`;
+                }
+                return `
+            <div class="simple-video-internal-image-item empty-slot${isActiveRef && hasBothRefItems ? ' active-ref' : ''}" data-key="${escapeHtml(item.key)}">
+                <div class="simple-video-internal-image-thumb-wrap empty">
+                    <span class="simple-video-internal-image-empty-icon">${escapeHtml(item.icon)}</span>
+                </div>
+                <div class="simple-video-internal-image-info">
+                    <div class="simple-video-internal-image-label">${escapeHtml(item.icon)} ${escapeHtml(item.label)}</div>
+                    <div class="simple-video-internal-image-filename muted">（未生成）</div>
+                    ${refBadgeHtml}
+                </div>
+            </div>`;
+            }
+
+            // ---- item with image ----
             const imgUrl = item.getUrl(v);
             const name = String(v.filename || '').split('/').pop() || '(不明)';
             const p = v.prompt ? String(v.prompt) : '';
@@ -6108,7 +6129,6 @@ function updateInternalImagesUI() {
                 ? escapeHtml(p.length > 80 ? p.substring(0, 80) + '…' : p)
                 : '';
 
-            // "Use as reference" toggle — shown on characterImage and characterSheetImage
             const isRefItem = item.key === 'characterImage' || item.key === 'characterSheetImage';
             const isActiveRef = isRefItem && (
                 (item.key === 'characterSheetImage' &&  state.useCharSheetAsRef) ||
@@ -6120,7 +6140,7 @@ function updateInternalImagesUI() {
                     // Both exist: show clickable toggle
                     refBadgeHtml = `<button class="simple-video-internal-image-use-ref${isActiveRef ? ' active' : ''}" data-key="${escapeHtml(item.key)}" type="button" title="シーンI2I参照として優先使用">${isActiveRef ? '📌 参照中' : '参照に使用'}</button>`;
                 } else {
-                    // Only one: always active, show static badge
+                    // Only one has image: always-active static badge
                     refBadgeHtml = `<span class="simple-video-internal-image-use-ref active static">📌 参照中</span>`;
                 }
             }

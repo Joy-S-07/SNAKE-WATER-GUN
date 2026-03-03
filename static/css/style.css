@@ -7375,6 +7375,28 @@ body.simple-video-enabled #simpleVideoLeft {
     border-color: rgba(220, 50, 50, 0.80);
 }
 
+/* Empty slot (no image yet) */
+.simple-video-internal-image-item.empty-slot {
+    opacity: 0.55;
+    border-style: dashed;
+}
+.simple-video-internal-image-thumb-wrap.empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+}
+.simple-video-internal-image-empty-icon {
+    font-size: 22px;
+    line-height: 1;
+    opacity: 0.45;
+}
+.simple-video-internal-image-filename.muted {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
 /* Use-as-reference toggle button (shown on characterImage / characterSheetImage items) */
 .simple-video-internal-image-use-ref {
     display: inline-block;
