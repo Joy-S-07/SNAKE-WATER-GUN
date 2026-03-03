@@ -462,6 +462,7 @@ const SimpleVideoUI = {
         showI2IAdvancedSettings: false,
         showCharacterImageGroup: true, // キャラクタ画像の生成グループ開閉状態
         showCharactersList: true,  // キャラクター一覧アコーディオンの開閉状態
+        showInternalImagesSection: true, // 内部参照画像セクションのアコーディオン開閉状態
         // Key image (single)
         keyImage: null,             // { filename, originalName, previewUrl }
         // Back-compat: generation gating still checks this
@@ -679,6 +680,7 @@ function loadSimpleVideoState() {
             SimpleVideoUI.state.showAdvancedSettings = !!parsed.showAdvancedSettings;
             SimpleVideoUI.state.showCharacterImageGroup = parsed.showCharacterImageGroup !== false; // default true
             SimpleVideoUI.state.showCharactersList = parsed.showCharactersList !== false; // default true
+            SimpleVideoUI.state.showInternalImagesSection = parsed.showInternalImagesSection !== false; // default true
             SimpleVideoUI.state.keyImage = parsed.keyImage || parsed.uploadedImage || null;
             SimpleVideoUI.state.uploadedImage = SimpleVideoUI.state.keyImage;
             SimpleVideoUI.state.dropSlots = normalizeDropSlots(parsed.dropSlots);
@@ -1116,6 +1118,7 @@ function saveSimpleVideoState() {
             showAdvancedSettings: SimpleVideoUI.state.showAdvancedSettings,
             showCharacterImageGroup: SimpleVideoUI.state.showCharacterImageGroup,
             showCharactersList: SimpleVideoUI.state.showCharactersList,
+            showInternalImagesSection: SimpleVideoUI.state.showInternalImagesSection,
             keyImage: SimpleVideoUI.state.keyImage,
             dropSlots: SimpleVideoUI.state.dropSlots,
             selectedCharacter: SimpleVideoUI.state.selectedCharacter,
@@ -1761,14 +1764,16 @@ function renderSimpleVideoUI() {
         </div>
 
         <div class="simple-video-section" id="simpleVideoInternalImagesWrap">
-            <div class="simple-video-section-title with-actions">
-                <span class="title-left"><i class="fas fa-image"></i> 📸 内部参照画像</span>
+            <div class="simple-video-section-title with-actions" id="simpleVideoInternalImagesTitle" style="cursor:pointer;">
+                <span class="title-left"><i class="fas fa-image"></i> 📸 内部参照画像 <span id="simpleVideoInternalImagesToggleIcon">▼</span></span>
                 <div class="simple-video-scenario-actions" aria-label="内部参照画像操作">
                     <button class="simple-video-icon-btn" id="simpleVideoInternalImagesClearAll" type="button" title="内部参照画像をすべてクリア">🗑️</button>
                 </div>
             </div>
-            <div class="simple-video-hint">自動生成・準備済みの内部参照画像（確認・クリア用）。✕で個別削除できます。</div>
-            <div id="simpleVideoInternalImagesGrid"></div>
+            <div id="simpleVideoInternalImagesContent">
+                <div class="simple-video-hint">自動生成・準備済みの内部参照画像（確認・クリア用）。✕で個別削除できます。</div>
+                <div id="simpleVideoInternalImagesGrid"></div>
+            </div>
         </div>
 
         <div class="simple-video-section" id="simpleVideoIntermediateWrap" style="display:none;">
@@ -2506,6 +2511,17 @@ function attachSimpleVideoEventListeners() {
                     SimpleVideoUI.state.customSize = { width: match[1], height: match[2] };
                 }
             }
+            saveSimpleVideoState();
+            updateSimpleVideoUI();
+        });
+    }
+
+    // Internal images section accordion toggle
+    const internalImagesTitle = document.getElementById('simpleVideoInternalImagesTitle');
+    if (internalImagesTitle) {
+        internalImagesTitle.addEventListener('click', (e) => {
+            if (e.target.closest('button')) return;
+            SimpleVideoUI.state.showInternalImagesSection = !SimpleVideoUI.state.showInternalImagesSection;
             saveSimpleVideoState();
             updateSimpleVideoUI();
         });
@@ -5776,6 +5792,16 @@ function updateSimpleVideoUI() {
         adv.style.display = state.showAdvancedSettings ? '' : 'none';
     }
 
+    // Restore internal images section accordion state
+    const internalImagesContent = document.getElementById('simpleVideoInternalImagesContent');
+    const internalImagesIcon = document.getElementById('simpleVideoInternalImagesToggleIcon');
+    if (internalImagesContent) {
+        internalImagesContent.style.display = state.showInternalImagesSection !== false ? '' : 'none';
+    }
+    if (internalImagesIcon) {
+        internalImagesIcon.textContent = state.showInternalImagesSection !== false ? '▼' : '▶';
+    }
+
     // Restore video settings accordion state
     const videoSettingsContent = document.getElementById('simpleVideoVideoSettingsContent');
     const videoSettingsIcon = document.getElementById('simpleVideoVideoSettingsToggleIcon');
@@ -8449,7 +8475,11 @@ async function startIntermediateImageGeneration(options = {}) {
             : normalizeWorkflowAlias(getConfiguredSimpleVideoWorkflow('i2i', 'qwen_i2i_2511_bf16_lightning4'));
 
         // Determine ref3 usage for scene I2I
-        const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflow } = computeRef3SceneI2IConfig(i2iWorkflowBase);
+        const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflowFromRef3 } = computeRef3SceneI2IConfig(i2iWorkflowBase);
+        // When character sheet is the reference, force 2512 pure-I2I mode (not EDIT) to avoid reproducing the multi-panel sheet layout
+        const i2iWorkflow = (state.useCharSheetAsRef && !!state.characterSheetImage?.filename)
+            ? normalizeWorkflowAlias('qwen_i2i_2512_lightning4')
+            : i2iWorkflowFromRef3;
 
         const missingIndexes = [];
         for (let i = 0; i < sceneCount; i++) {
@@ -9845,7 +9875,12 @@ function computeRef3SceneI2IConfig(baseWorkflow) {
  * @returns {string} hint text to prepend to prompt
  */
 function buildCharSheetRefPromptHint() {
-    return 'The reference image is a multi-angle character sheet showing the character from multiple views (front, back, side, etc.). Use it as the character identity and appearance reference to maintain consistent character design throughout the scene.';
+    return [
+        'IMPORTANT: The reference image is a CHARACTER SHEET (multi-view reference sheet) showing the same character from multiple angles (front, back, side, three-quarter, etc.).',
+        'Do NOT reproduce the character sheet layout. Do NOT output multiple panels or multiple views.',
+        'Generate ONE single scene image of this character in the described setting.',
+        'Use the character sheet only to extract the character identity: face, hair, clothing, colors, body proportions.',
+    ].join(' ');
 }
 
 /**
@@ -10627,7 +10662,11 @@ async function startGeneration() {
                 : normalizeWorkflowAlias(getConfiguredSimpleVideoWorkflow('i2i', 'qwen_i2i_2511_bf16_lightning4'));
 
             // ref3 scene I2I config
-            const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflow } = computeRef3SceneI2IConfig(i2iWorkflowBase);
+            const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflowFromRef3d } = computeRef3SceneI2IConfig(i2iWorkflowBase);
+            // When character sheet is the reference, force 2512 pure-I2I mode (not EDIT)
+            const i2iWorkflow = (state.useCharSheetAsRef && !!state.characterSheetImage?.filename)
+                ? normalizeWorkflowAlias('qwen_i2i_2512_lightning4')
+                : i2iWorkflowFromRef3d;
 
             // FLF品質設定: speed=4-step(高速), quality=20-step(高品質)
             const flfWorkflow = state.flfQuality === 'quality' ? 'wan22_flf2v' : 'wan22_smooth_first2last';
@@ -10916,7 +10955,11 @@ async function startGeneration() {
                 : normalizeWorkflowAlias(getConfiguredSimpleVideoWorkflow('i2i', 'qwen_i2i_2511_bf16_lightning4'));
 
             // ref3 scene I2I config
-            const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflow } = computeRef3SceneI2IConfig(i2iWorkflowBase);
+            const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflowFromRef3e } = computeRef3SceneI2IConfig(i2iWorkflowBase);
+            // When character sheet is the reference, force 2512 pure-I2I mode (not EDIT)
+            const i2iWorkflow = (state.useCharSheetAsRef && !!state.characterSheetImage?.filename)
+                ? normalizeWorkflowAlias('qwen_i2i_2512_lightning4')
+                : i2iWorkflowFromRef3e;
 
             // FLF品質設定: speed=4-step(高速), quality=20-step(高品質)
             const flfWorkflow = state.flfQuality === 'quality' ? 'wan22_flf2v' : 'wan22_smooth_first2last';
@@ -11212,7 +11255,11 @@ async function startGeneration() {
                 : normalizeWorkflowAlias(getConfiguredSimpleVideoWorkflow('i2i', 'qwen_i2i_2511_bf16_lightning4'));
 
             // ref3 scene I2I config
-            const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflow } = computeRef3SceneI2IConfig(i2iWorkflowBase);
+            const { ref3Active, ref3Mode, adjustedWorkflow: i2iWorkflowFromRef3c } = computeRef3SceneI2IConfig(i2iWorkflowBase);
+            // When character sheet is the reference, force 2512 pure-I2I mode (not EDIT)
+            const i2iWorkflow = (state.useCharSheetAsRef && !!state.characterSheetImage?.filename)
+                ? normalizeWorkflowAlias('qwen_i2i_2512_lightning4')
+                : i2iWorkflowFromRef3c;
 
             // I2V workflow (LTX option applies here since no FLF)
             const i2vWorkflow = applyWorkflowSpeedOption('wan22_i2v_lightning', !!state.useFast);
