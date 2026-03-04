@@ -44,12 +44,26 @@ SIMPLE_VIDEO_HELP_DOCS: Dict[str, Dict[str, str]] = {
     "tutorial": {
         "title": "クイックヘルプ",
         "file": "HELP_JP.md",
+        "file_en": "HELP_EN.md",
         "description": "画面を開いた後の基本操作（画像準備→シーン生成→動画化）",
+        "title_en": "Quick Help",
+        "description_en": "Basic operations after opening the app (prepare image -> generate scenes -> generate video)",
+    },
+    "tutorial_full": {
+        "title": "チュートリアル",
+        "file": "TUTORIAL_JP.md",
+        "file_en": "TUTORIAL_EN.md",
+        "description": "機能別の実践手順を順番に試すためのガイド",
+        "title_en": "Tutorial",
+        "description_en": "Step-by-step practical guide by feature",
     },
     "guide": {
         "title": "ユーザーズガイド",
         "file": "USAGE_JP.md",
+        "file_en": "USAGE_EN.md",
         "description": "画面全体の使い方、運用時の確認ポイント",
+        "title_en": "User Guide",
+        "description_en": "Full-screen usage and operation checkpoints",
     },
     "technical": {
         "title": "テクニカルガイド",
@@ -1250,6 +1264,8 @@ def _fallback_prompt_generate(
     output_type: str,
     complexity: str,
     translation_mode: bool,
+    scene_variation: str = "normal",
+    motion_level: str = "medium",
 ) -> tuple[list[Dict[str, Any]], str]:
     count = max(1, min(24, int(scene_count or 1)))
     source_units = _split_text_units(user_prompt)
@@ -1282,6 +1298,26 @@ def _fallback_prompt_generate(
         "rich": "前景・中景・背景の振る舞い、カメラ動線、空気感の変化まで具体化。",
     }.get((complexity or "basic").strip().lower(), "構図とディテールを自然に統一。")
 
+    variation = str(scene_variation or "normal").strip().lower()
+    if variation not in {"stable", "normal", "dynamic"}:
+        variation = "normal"
+    motion = str(motion_level or "medium").strip().lower()
+
+    if has_japanese:
+        if variation == "stable":
+            variation_suffix = "シーン間差分は最小限にし、同一被写体・同一画調・同一構図軸を維持。"
+        elif variation == "dynamic":
+            variation_suffix = "シーンごとの差分を明確にしつつ、被写体同一性は維持。"
+        else:
+            variation_suffix = "シーン間の連続性を保ちつつ自然に変化。"
+    else:
+        if variation == "stable":
+            variation_suffix = "Keep inter-scene deltas minimal; maintain the same subject identity, visual style, and composition axis."
+        elif variation == "dynamic":
+            variation_suffix = "Allow clearer inter-scene variation while preserving subject identity."
+        else:
+            variation_suffix = "Keep continuity while allowing natural scene progression."
+
     target = (output_type or "video").strip().lower()
     base = pad_to_count(source_units, count)
     prompts: list[Dict[str, Any]] = []
@@ -1294,9 +1330,11 @@ def _fallback_prompt_generate(
                 text = f"Static starting frame: {text}. {style_suffix_en}"
         elif target == "flf_sequence":
             if has_japanese:
-                text = f"キーフレーム{idx + 1}: {text}。前後フレームとの連続性を保つ。{style_suffix_ja}"
+                motion_suffix = "フレーム間の変化は極小。" if motion in {"tiny", "micro", "xs"} else ("フレーム間の変化は小さく。" if motion in {"small", "low", "s"} else ("フレーム間は中程度の変化。" if motion in {"medium", "m"} else "フレーム間は適度に大きめの変化。"))
+                text = f"キーフレーム{idx + 1}: {text}。前後フレームとの連続性を保つ。{motion_suffix}{variation_suffix}{style_suffix_ja}"
             else:
-                text = f"Keyframe {idx + 1}: {text}. Keep continuity with adjacent frames. {style_suffix_en}"
+                motion_suffix = "Use tiny frame-to-frame change." if motion in {"tiny", "micro", "xs"} else ("Use small frame-to-frame change." if motion in {"small", "low", "s"} else ("Use moderate frame-to-frame change." if motion in {"medium", "m"} else "Allow moderately larger frame-to-frame change."))
+                text = f"Keyframe {idx + 1}: {text}. Keep continuity with adjacent frames. {motion_suffix} {variation_suffix} {style_suffix_en}"
         elif target == "image":
             if has_japanese:
                 text = f"画像プロンプト: {text}。{style_suffix_ja}"
@@ -1310,6 +1348,77 @@ def _fallback_prompt_generate(
         prompts.append({"scene": idx + 1, "prompt": text})
 
     return prompts, "fallback: rule-based prompt generation"
+
+
+def _fallback_scenario_generate(user_prompt: str, complexity: str = "standard") -> str:
+    seed = str(user_prompt or "").strip()
+    if not seed:
+        seed = "A coherent video concept with clear mood and progression"
+
+    level = str(complexity or "standard").strip().lower()
+    if level not in {"basic", "standard", "rich"}:
+        level = "standard"
+
+    has_japanese = bool(re.search(r"[\u3040-\u30FF\u4E00-\u9FFF]", seed))
+    timeline_hint = bool(re.search(
+        r"(日|週|月|季節|年|昔|今|未来|これから|過去|若い頃|年を取|day|week|month|season|year|past|present|future)",
+        seed,
+        flags=re.IGNORECASE,
+    ))
+
+    base_count = {"basic": 4, "standard": 5, "rich": 6}[level]
+    section_count = max(3, min(7, base_count + (1 if timeline_hint and level != "basic" else 0)))
+
+    def build_section_lines(lang_ja: bool) -> list[str]:
+        lines: list[str] = []
+        if lang_ja:
+            if timeline_hint:
+                labels = ["起点", "初期", "変化", "転換", "到達", "余韻", "展望"]
+                for idx in range(section_count):
+                    lines.append(f"{idx + 1}) {labels[idx]}: 時間経過がわかる出来事と感情変化を記述")
+            else:
+                for idx in range(section_count):
+                    lines.append(f"{idx + 1}) シーン{idx + 1}: 主要動作・環境・カメラ意図を記述")
+        else:
+            if timeline_hint:
+                labels = ["Origin", "Early phase", "Shift", "Turning point", "Arrival", "Afterglow", "Outlook"]
+                for idx in range(section_count):
+                    lines.append(f"{idx + 1}) {labels[idx]}: describe event progression and emotional change")
+            else:
+                for idx in range(section_count):
+                    lines.append(f"{idx + 1}) Scene {idx + 1}: describe key action, environment, and camera intent")
+        return lines
+
+    if has_japanese:
+        detail_hint = {
+            "basic": "要点を簡潔にまとめる。",
+            "standard": "描写を具体化し、場面や時間のつながりを明確にする。",
+            "rich": "視覚演出・感情の起伏・連続性を詳細に記述する。",
+        }[level]
+        lines = [
+            f"テーマ: {seed}",
+            f"方針: {detail_hint}",
+            "注記: ユーザー意図を優先し、対立構造は必要な場合のみ採用する。",
+            f"構成案（{section_count}パート）:",
+        ]
+        lines.extend(build_section_lines(True))
+        lines.append("連続性メモ: 被写体の外見・衣装・主要小道具は必要に応じて統一する。")
+        return "\n".join(lines)
+
+    detail_hint = {
+        "basic": "Keep it concise.",
+        "standard": "Add concrete scene/time continuity and visual details.",
+        "rich": "Include richer visual motifs, emotional arc, and camera rhythm.",
+    }[level]
+    lines = [
+        f"Theme: {seed}",
+        f"Direction: {detail_hint}",
+        "Note: prioritize user intent; include conflict only when it fits the concept.",
+        f"Outline ({section_count} parts):",
+    ]
+    lines.extend(build_section_lines(False))
+    lines.append("Continuity note: keep identity/costume/key props consistent when required.")
+    return "\n".join(lines)
 
 
 def _fallback_lyrics_generate(
@@ -1393,6 +1502,96 @@ def _fallback_lyrics_generate(
 
     _ = mood
     return lyrics_body, duration, parts
+
+
+def _split_scenario_sentences(text: str) -> List[str]:
+    raw = str(text or "").strip()
+    if not raw:
+        return []
+    chunks = re.split(r"(?<=[。．.!?！？])\s+|\n+", raw)
+    return [c.strip() for c in chunks if c and c.strip()]
+
+
+async def _maybe_summarize_lyrics_scenario(
+    client: AsyncOpenAI,
+    scenario: str,
+    language: str,
+) -> tuple[str, Dict[str, Any]]:
+    original = str(scenario or "").strip()
+    if not original:
+        return "", {
+            "applied": False,
+            "reason": "empty",
+            "stats": {"chars": 0, "sentences": 0, "avg_sentence_chars": 0.0},
+        }
+
+    sentences = _split_scenario_sentences(original)
+    chars = len(original)
+    sentence_count = max(1, len(sentences))
+    avg_sentence_chars = round(chars / sentence_count, 1)
+
+    should_summarize = (
+        chars >= 900
+        or len(sentences) >= 12
+        or (chars >= 600 and avg_sentence_chars >= 70)
+        or avg_sentence_chars >= 120
+    )
+    if not should_summarize:
+        return original, {
+            "applied": False,
+            "reason": "length_not_large",
+            "stats": {
+                "chars": chars,
+                "sentences": len(sentences),
+                "avg_sentence_chars": avg_sentence_chars,
+            },
+        }
+
+    system_role = (
+        "You are a scenario editor for lyrics generation. "
+        "Summarize only when source text is long. Keep core intent, emotional arc, key scene flow, and ending image. "
+        "Do not add new facts. Keep names/entities consistent."
+    )
+    user_message = (
+        f"INPUT_LANGUAGE_HINT: {str(language or 'auto').strip()}\n"
+        "Task: Summarize this scenario for lyric writing while preserving meaning.\n"
+        "Constraints:\n"
+        "- Keep the same language as the input text\n"
+        "- Prefer 5-10 compact sentences\n"
+        "- Keep: theme, emotion progression, scene progression, ending image\n"
+        "- Remove repetitive details and over-specific side information\n"
+        "- Plain text only, no markdown\n\n"
+        f"SCENARIO:\n{original}"
+    )
+
+    try:
+        response = await chat_req(client, user_message, system_role, temperature=0.2, max_tokens=1600)
+        summarized = str(response or "").strip()
+        summarized = re.sub(r"^```\w*\n?", "", summarized)
+        summarized = re.sub(r"\n?```$", "", summarized).strip()
+        if summarized and len(summarized) >= 80:
+            return summarized, {
+                "applied": True,
+                "reason": "length_based",
+                "stats": {
+                    "chars": chars,
+                    "sentences": len(sentences),
+                    "avg_sentence_chars": avg_sentence_chars,
+                    "summarized_chars": len(summarized),
+                },
+            }
+    except Exception:
+        pass
+
+    return original, {
+        "applied": False,
+        "reason": "summary_failed",
+        "stats": {
+            "chars": chars,
+            "sentences": len(sentences),
+            "avg_sentence_chars": avg_sentence_chars,
+        },
+    }
 
 
 def _fallback_prompt_expand(prompt: str, output_type: str, target_workflow: str) -> str:
@@ -1701,6 +1900,61 @@ async def execute_utility_job(job: Job) -> Dict[str, Any]:
         await asyncio.to_thread(_run_ffmpeg, cmd)
         return {"outputs": [_build_output_item(out_name, "movie", "video")]}
 
+    if workflow == "scenario_generate":
+        if not req.user_prompt:
+            raise RuntimeError("scenario_generate requires 'user_prompt'")
+        await job_manager.update(job, progress=0.25, message="Generating scenario/world setting")
+
+        complexity = str(req.prompt_complexity or "standard").strip().lower()
+        if complexity not in {"basic", "standard", "rich"}:
+            complexity = "standard"
+        scene_variation = str(req.scene_variation or "normal").strip().lower()
+        if scene_variation not in {"stable", "normal", "dynamic"}:
+            scene_variation = "normal"
+
+        system_role = (
+            "You are a scenario writer for AI video generation. "
+            "Expand a short user idea into a practical, scene-consistent scenario text for downstream prompt generation. "
+            "Respect user intent and do not force a fixed template. "
+            "Keep the same language as the user's input. "
+            "Do not invent named characters, age, profession, or biography unless explicitly provided by the user. "
+            "Do not override or replace the user's intended main subject. "
+            "Output plain text only. No markdown, no extra explanations."
+        )
+        user_message = (
+            "Expand the following short idea into a detailed scenario/world setting.\n"
+            "Use a flexible structure. If the input implies a timeline (past->present->future, days/weeks/months/years, seasons), "
+            "organize by time phases. Otherwise, organize by scenes.\n"
+            "Section count should be adaptive (typically 4-7, but choose what best fits the idea).\n"
+            "Include only relevant elements among: world setting, key subjects, relationships, tension/conflict (optional), visual tone, progression.\n"
+            "Keep it practical for scene prompt generation: avoid overlong biography blocks and avoid adding unrelated lore.\n"
+            f"Detail level: {complexity}.\n"
+            f"Scene variation preference: {scene_variation} (stable=minimal inter-scene change, normal=balanced, dynamic=larger change).\n"
+            f"Idea:\n{str(req.user_prompt or '').strip()}"
+        )
+
+        try:
+            client = get_openai_client()
+            response = await chat_req(
+                client, user_message, system_role,
+                temperature=0.5, max_tokens=2200, repeat_penalty=1.12,
+            )
+            scenario_text = str(response or "").strip()
+            scenario_text = re.sub(r"^```\w*\n?", "", scenario_text)
+            scenario_text = re.sub(r"\n?```$", "", scenario_text).strip()
+            if not scenario_text:
+                scenario_text = _fallback_scenario_generate(str(req.user_prompt or ""), complexity)
+        except Exception as exc:
+            scenario_text = _fallback_scenario_generate(str(req.user_prompt or ""), complexity)
+            response = f"fallback: {type(exc).__name__}: {str(exc)}"
+
+        return {
+            "scenario": scenario_text,
+            "raw_response": response,
+            "complexity": complexity,
+            "scene_variation": scene_variation,
+        }
+
     if workflow == "prompt_generate":
         if not req.user_prompt:
             raise RuntimeError("prompt_generate requires 'user_prompt'")
@@ -1709,11 +1963,14 @@ async def execute_utility_job(job: Job) -> Dict[str, Any]:
         client = get_openai_client()
         output_type = str(req.output_type or "video").strip().lower()
         target_workflow = str(req.target_workflow or "").strip().lower()
-        complexity = str(req.prompt_complexity or "basic").strip().lower()
+        complexity = str(req.prompt_complexity or "standard").strip().lower()
         if complexity not in {"basic", "standard", "rich"}:
-            complexity = "basic"
+            complexity = "standard"
         translation_mode = bool(req.translation_mode)
         motion_level = str(req.flf_motion_level or "medium").strip().lower()
+        scene_variation = str(req.scene_variation or "normal").strip().lower()
+        if scene_variation not in {"stable", "normal", "dynamic"}:
+            scene_variation = "normal"
 
         if translation_mode:
             system_role = (
@@ -1728,7 +1985,7 @@ async def execute_utility_job(job: Job) -> Dict[str, Any]:
             if output_type == "flf_sequence":
                 system_role = (
                     "You are a prompt engineer for FLF keyframe sequences. "
-                    "Output exactly N prompts with #N:. Keep continuity across scenes."
+                    "Output exactly N prompts with #N:. Keep strict continuity across scenes."
                 )
             elif output_type == "video_frame":
                 system_role = (
@@ -1761,24 +2018,53 @@ async def execute_utility_job(job: Job) -> Dict[str, Any]:
             system_role += " Always write all prompts in English only, regardless of the input language."
 
             complexity_rules = {
-                "basic": "Keep each scene concise (2-3 clear sentences).",
-                "standard": "Use 4-6 coherent sentences with clearer action progression.",
-                "rich": "Use 6-9 detailed sentences with explicit foreground/midground/background motion and camera behavior.",
+                "basic": "Keep each scene concise (2-3 clear sentences) while preserving subject identity.",
+                "standard": "Use 4-6 coherent sentences with explicit action progression, camera movement, and scene continuity.",
+                "rich": "Use 6-9 detailed sentences with foreground/midground/background motion layers, camera rhythm, lighting transitions, and continuity locks.",
             }
+
+            video_structure_hint = (
+                "For each scene, include these aspects in natural prose: "
+                "subject identity (consistent), environment/time/weather, key action, camera direction, "
+                "lighting/color mood, texture/style keywords, and continuity note from previous scene. "
+                "Avoid logos, subtitles, watermark text, broken anatomy, and abrupt identity changes. "
+                "Use ONE full-frame composition per scene only. "
+                "Never use split-screen, collage, diptych/triptych, comic-panel, storyboard grid, or multi-panel layout. "
+                "Avoid montage-like packed descriptions that imply multiple simultaneous subframes. "
+                "Keep exactly one primary instance of the main subject in each frame unless the user explicitly requests a crowd/group. "
+                "Do not duplicate or clone the same character in one frame."
+            )
+
+            image_structure_hint = (
+                "For each scene, include: subject, composition, environment, lighting direction, color palette, "
+                "material/texture, and mood. Keep identity and costume consistent if scenes are related. "
+                "Single full-frame image only; no split-screen/collage/comic-panel/multi-panel composition. "
+                "Exactly one primary subject instance per frame unless group composition is explicitly requested; avoid cloned duplicates."
+            )
 
             motion_hint = ""
             if output_type == "flf_sequence":
-                if motion_level in {"small", "low", "s"}:
+                if motion_level in {"tiny", "micro", "xs"}:
+                    motion_hint = "Use tiny frame-to-frame changes with near-static progression."
+                elif motion_level in {"small", "low", "s"}:
                     motion_hint = "Use very small frame-to-frame changes for smooth interpolation."
                 elif motion_level in {"large", "high", "l"}:
                     motion_hint = "Allow moderate progression while keeping identity and scene coherent."
                 else:
                     motion_hint = "Use small-to-moderate incremental keyframe progression."
 
+            variation_hint = {
+                "stable": "Keep inter-scene changes minimal. Preserve same subject identity, framing axis, and look across adjacent prompts.",
+                "normal": "Keep balanced scene progression with continuity.",
+                "dynamic": "Allow larger inter-scene differences while preserving identity continuity.",
+            }[scene_variation]
+
             user_message = (
                 f"Create exactly {scene_count} prompts for output_type={output_type}.\n"
                 f"User request:\n{req.user_prompt}\n\n"
                 f"Complexity: {complexity}. {complexity_rules[complexity]}\n"
+                f"Guidance: {(video_structure_hint if output_type in {'video', 'flf_sequence'} else image_structure_hint)}\n"
+                f"Variation preference: {variation_hint}\n"
                 f"{motion_hint}\n"
                 "Output format: #1: <text>, #2: <text>, ... "
                 "Plain text only. No markdown, no bold, no headers, no explanations. "
@@ -1798,6 +2084,8 @@ async def execute_utility_job(job: Job) -> Dict[str, Any]:
                     output_type=output_type,
                     complexity=complexity,
                     translation_mode=translation_mode,
+                    scene_variation=scene_variation,
+                    motion_level=motion_level,
                 )
         except Exception as exc:
             await job_manager.update(job, progress=0.75, message="LLM unavailable; using rule-based prompts")
@@ -1807,6 +2095,8 @@ async def execute_utility_job(job: Job) -> Dict[str, Any]:
                 output_type=output_type,
                 complexity=complexity,
                 translation_mode=translation_mode,
+                scene_variation=scene_variation,
+                motion_level=motion_level,
             )
             response = f"{fallback_note}: {type(exc).__name__}: {str(exc)}"
         return {
@@ -1822,6 +2112,12 @@ async def execute_utility_job(job: Job) -> Dict[str, Any]:
             raise RuntimeError("lyrics_generate requires 'scenario'")
         await job_manager.update(job, progress=0.25, message="Generating lyrics")
         client = get_openai_client()
+        await job_manager.update(job, progress=0.33, message="Checking scenario length")
+        scenario_for_lyrics, scenario_summary_meta = await _maybe_summarize_lyrics_scenario(
+            client=client,
+            scenario=scenario,
+            language=str(req.language or "English"),
+        )
         system_role = (
             "You are a professional lyricist for AI music generation (ACE-Step). "
             "Return first-line JSON metadata and then lyrics with section tags."
@@ -1830,7 +2126,7 @@ async def execute_utility_job(job: Job) -> Dict[str, Any]:
         if target_duration is not None:
             target_duration = max(5, min(300, target_duration))
         user_message = (
-            f"THEME: {scenario}\n"
+            f"THEME: {scenario_for_lyrics}\n"
             f"GENRE: {str(req.genre or 'pop').strip()}\n"
             f"LANGUAGE: {str(req.language or 'English').strip()}\n"
             f"TARGET_DURATION_SECONDS: {target_duration if target_duration is not None else 'auto'}\n"
@@ -1868,6 +2164,8 @@ async def execute_utility_job(job: Job) -> Dict[str, Any]:
         return {
             "lyrics": lyrics_text,
             "scenario": scenario,
+            "scenario_for_lyrics": scenario_for_lyrics,
+            "scenario_summary_meta": scenario_summary_meta,
             "genre": str(req.genre or ""),
             "language": str(req.language or "English"),
             "target_duration_sec": target_duration,
@@ -2190,6 +2488,7 @@ async def utility(request: UtilityRequest):
     supported = {
         "video_concat",
         "video_audio_merge",
+        "scenario_generate",
         "prompt_generate",
         "lyrics_generate",
         "lyrics_to_tags",
@@ -2715,44 +3014,76 @@ def index_file():
 
 
 @app.get("/api/v1/simple-video/help", response_class=HTMLResponse)
-def simple_video_help_index() -> str:
+def simple_video_help_index(lang: Optional[str] = None) -> str:
+    lang_code = "en" if str(lang or "").strip().lower().startswith("en") else "ja"
     rows: list[str] = []
     for key, meta in SIMPLE_VIDEO_HELP_DOCS.items():
-        title = str(meta.get("title") or key)
-        desc = str(meta.get("description") or "")
+        if key == "technical":
+            continue
+        title = str(meta.get("title_en") or meta.get("title") or key) if lang_code == "en" else str(meta.get("title") or key)
+        desc = str(meta.get("description_en") or meta.get("description") or "") if lang_code == "en" else str(meta.get("description") or "")
+        href = f"/api/v1/simple-video/help/{key}?lang={lang_code}"
         rows.append(
-            f'<li><a href="/api/v1/simple-video/help/{key}" target="_blank" rel="noopener">{title}</a>'
+            f'<li><a href="{href}" target="_blank" rel="noopener">{title}</a>'
             + (f"<div style=\"font-size:12px;color:#666;margin-top:4px;\">{desc}</div>" if desc else "")
             + "</li>"
         )
 
+    page_title = "Simple Video Help" if lang_code == "en" else "かんたん動画 Help"
+    page_h1 = "❓ Simple Video Help" if lang_code == "en" else "❓ かんたん動画 Help"
+    page_desc = "Select a document to open." if lang_code == "en" else "参照したいドキュメントを選択してください。"
+
     return (
-        "<!doctype html><html lang='ja'><head><meta charset='utf-8'>"
+        f"<!doctype html><html lang='{lang_code}'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>かんたん動画 Help</title>"
+        f"<title>{page_title}</title>"
         "<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:24px;line-height:1.6;}"
         "h1{font-size:22px;margin:0 0 12px;} ul{padding-left:20px;} li{margin:12px 0;}"
         "a{font-weight:600;text-decoration:none;} a:hover{text-decoration:underline;}</style></head><body>"
-        "<h1>❓ かんたん動画 Help</h1>"
-        "<p>参照したいドキュメントを選択してください。</p>"
+        f"<h1>{page_h1}</h1>"
+        f"<p>{page_desc}</p>"
         f"<ul>{''.join(rows)}</ul>"
         "</body></html>"
     )
 
 
 @app.get("/api/v1/simple-video/help/{doc_key}")
-def simple_video_help_doc(doc_key: str):
+def simple_video_help_doc(doc_key: str, lang: Optional[str] = None):
     key = str(doc_key or "").strip().lower()
     meta = SIMPLE_VIDEO_HELP_DOCS.get(key)
     if not meta:
         raise HTTPException(status_code=404, detail=f"Unknown help document: {doc_key}")
 
-    filename = str(meta.get("file") or "").strip()
+    lang_code = "en" if str(lang or "").strip().lower().startswith("en") else "ja"
+    if lang_code == "en":
+        filename = str(meta.get("file_en") or meta.get("file") or "").strip()
+    else:
+        filename = str(meta.get("file") or "").strip()
     doc_path = SIMPLE_VIDEO_DOCS_DIR / filename
     if not doc_path.exists() or not doc_path.is_file():
-        raise HTTPException(status_code=404, detail=f"Help document not found: {filename}")
+        fallback = str(meta.get("file") or "").strip()
+        fallback_path = SIMPLE_VIDEO_DOCS_DIR / fallback
+        if fallback and fallback_path.exists() and fallback_path.is_file():
+            doc_path = fallback_path
+        else:
+            raise HTTPException(status_code=404, detail=f"Help document not found: {filename}")
 
     return FileResponse(path=str(doc_path), filename=doc_path.name, media_type="text/markdown; charset=utf-8")
+
+
+# --- Dynamic config: switch image model via SIMPLE_VIDEO_IMAGE_MODEL env ---
+@app.get("/js/simple_video_config.js")
+def simple_video_config_js():
+    model_variant = os.environ.get("SIMPLE_VIDEO_IMAGE_MODEL", "").strip()
+    if model_variant == "2511":
+        config_file = STATIC_DIR / "js" / "simple_video_config_2511.js"
+    else:
+        config_file = STATIC_DIR / "js" / "simple_video_config.js"
+    if not config_file.exists():
+        raise HTTPException(status_code=404, detail="Config file not found")
+    resp = FileResponse(path=str(config_file), media_type="application/javascript; charset=utf-8")
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return resp
 
 
 app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

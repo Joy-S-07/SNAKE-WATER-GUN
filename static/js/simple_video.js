@@ -188,6 +188,101 @@ const SIMPLE_VIDEO_STANDALONE_CONFIG = (() => {
     };
 })();
 
+const SIMPLE_VIDEO_UI_I18N = {
+    ja: {
+        topbarTitle: '🎬 かんたん動画（Standalone）',
+        filesBtn: '📁 Files',
+        helpBtn: '❓ Help',
+        homeBtn: '🏠 Home',
+        langJa: '日本語',
+        langEn: 'English',
+        loading: '🎬 かんたん動画 UI 読み込み中...',
+        guideTitle: '❓ かんたん動画 Help',
+        guideTutorial: 'クイックヘルプ',
+        guideTutorialFull: 'チュートリアル',
+        guideGuide: 'USAGE',
+        guideTechnical: 'テクニカルガイド',
+        guideLoading: '読み込み中...',
+        keyImageTitle: '🖼️キー画像',
+        characterGenTitle: 'キャラクタ画像の生成',
+        musicTitle: '🎼 音楽生成',
+        outputTitle: '🎬 出力動画',
+        videoGenTitle: '🎬 動画生成',
+        sequenceTitle: '⚙️ 生成シーケンス',
+        videoSettingsTitle: '⚙️ 動画設定',
+        scenarioTitle: '⚙️ シナリオ入力',
+        internalRefTitle: '📸 内部参照画像',
+        generatedPromptTitle: '🤖 生成されたシーンプロンプト',
+        imagePromptTranslate: '🌐 翻訳',
+        imagePromptClear: '🗑️ クリア',
+        removeBgLabel: '✂️ 事前背景削除',
+        removeBgHint: '背景をなくしたい場合は、プロンプトで背景色を指定（例: plain white background / 背景は白）',
+        scenarioTranslate: '🌐 翻訳',
+        scenarioBuild: '🧠 シナリオ作成',
+        promptGenerate: '🤖 プロンプト生成',
+        preGenerateImages: '🖼️ シーン事前生成',
+        generateVideo: '▶ 動画を生成',
+        videoToMusic: '🎵 動画→音楽',
+        stopGenerate: '⏹ 生成中止',
+        continueBtn: '▶ CONTINUE',
+        regenAllScenes: '🔄 全シーン再生成',
+        restartFromStart: '🔁 最初からやり直し',
+        pauseAdjust: '⏸ 停止して調整',
+        generatedTranslate: '🌐 翻訳',
+        outputFileCountSuffix: ' files',
+        selectedPrefix: 'Selected: ',
+        selectAll: 'Select All',
+        deselect: 'Deselect',
+        deleteBtn: 'Delete',
+    },
+    en: {
+        topbarTitle: '🎬 Simple Video (Standalone)',
+        filesBtn: '📁 Files',
+        helpBtn: '❓ Help',
+        homeBtn: '🏠 Home',
+        langJa: 'Japanese',
+        langEn: 'English',
+        loading: '🎬 Loading Simple Video UI...',
+        guideTitle: '❓ Simple Video Help',
+        guideTutorial: 'Quick Help',
+        guideTutorialFull: 'Tutorial',
+        guideGuide: 'USAGE',
+        guideTechnical: 'Technical Guide',
+        guideLoading: 'Loading...',
+        keyImageTitle: '🖼️ Key Image',
+        characterGenTitle: 'Character Image Creation',
+        musicTitle: '🎼 Music Generation',
+        outputTitle: '🎬 Output',
+        videoGenTitle: '🎬 Video Generation',
+        sequenceTitle: '⚙️ Generation Sequence',
+        videoSettingsTitle: '⚙️ Video Settings',
+        scenarioTitle: '⚙️ Scenario Input',
+        internalRefTitle: '📸 Internal Reference Images',
+        generatedPromptTitle: '🤖 Generated Scene Prompts',
+        imagePromptTranslate: '🌐 Translate',
+        imagePromptClear: '🗑️ Clear',
+        removeBgLabel: '✂️ Pre Background Removal',
+        removeBgHint: 'To remove background cleanly, specify the target background color in prompt (e.g., plain white background).',
+        scenarioTranslate: '🌐 Translate',
+        scenarioBuild: '🧠 Build Scenario',
+        promptGenerate: '🤖 Generate Prompts',
+        preGenerateImages: '🖼️ Pre-generate Scene Images',
+        generateVideo: '▶ Generate Video',
+        videoToMusic: '🎵 Video → Music',
+        stopGenerate: '⏹ Stop',
+        continueBtn: '▶ CONTINUE',
+        regenAllScenes: '🔄 Regenerate All Scenes',
+        restartFromStart: '🔁 Restart From Beginning',
+        pauseAdjust: '⏸ Pause & Adjust',
+        generatedTranslate: '🌐 Translate',
+        outputFileCountSuffix: ' files',
+        selectedPrefix: 'Selected: ',
+        selectAll: 'Select All',
+        deselect: 'Deselect',
+        deleteBtn: 'Delete',
+    },
+};
+
 function getConfiguredSimpleVideoWorkflow(kind, fallback = '') {
     const workflows = SIMPLE_VIDEO_STANDALONE_CONFIG?.workflows || {};
     const value = String(workflows?.[kind] || fallback || '').trim();
@@ -443,9 +538,11 @@ let simpleVideoContinueGateRestartM2V = false;
 const SimpleVideoUI = {
     initialized: false,
     state: {
+        uiLanguage: 'ja',
         selectedPreset: null,       // VIDEO_PRESETS[].id
         imagePrompt: '',
         llmPrompt: '',
+        scenarioIdea: '',
         scenario: '',
         // Defaults per spec
         sceneCount: '3',
@@ -518,8 +615,8 @@ const SimpleVideoUI = {
         // OFF: copy the scenario text as-is into the prompt area.
         scenarioUseLLM: true,
         // Prompt complexity for LLM scene generation: 'basic' | 'standard' | 'rich'
-        // basic = previous default level, standard = more detailed, rich = includes in-scene motion layers
-        promptComplexity: 'basic',
+        // default = standard (better quality baseline)
+        promptComplexity: 'standard',
         // FLF prompt augmentation: inject scene N+1 intent as end-target constraint into scene N FLF prompt
         flfEndConstraintEnabled: true,
 
@@ -537,8 +634,10 @@ const SimpleVideoUI = {
         // Whether to use ref3 in scene I2I (checkbox, default ON)
         ref3ModeEnabled: true,
 
-        // Motion strength for video generation: 'small' | 'medium' | 'large'
+        // Motion strength for video generation: 'tiny' | 'small' | 'medium' | 'large'
         motionStrength: 'medium',
+        // Scenario variation preference for scenario generation: 'auto' | 'stable' | 'normal' | 'dynamic'
+        scenarioVariation: 'auto',
 
         // I2I prompt conversion mode for image-refine sequences
         // 'character': prioritize keeping character identity consistent with reference
@@ -633,6 +732,7 @@ function initSimpleVideoUI() {
     loadSimpleVideoState();
     enforceStandaloneConfigState();
     rebasePreviewUrls();
+    ensureSimpleVideoLanguageSwitcher();
 
     // Build initial UI
     renderSimpleVideoUI();
@@ -654,9 +754,11 @@ function loadSimpleVideoState() {
         if (saved) {
             const parsed = JSON.parse(saved);
             // Only restore safe state (not generating state)
+            SimpleVideoUI.state.uiLanguage = normalizeSimpleVideoUiLanguage(parsed.uiLanguage);
             SimpleVideoUI.state.selectedPreset = parsed.selectedPreset || null;
             SimpleVideoUI.state.imagePrompt = parsed.imagePrompt || '';
             SimpleVideoUI.state.llmPrompt = parsed.llmPrompt || '';
+            SimpleVideoUI.state.scenarioIdea = parsed.scenarioIdea || '';
             SimpleVideoUI.state.scenario = parsed.scenario || '';
             // Spec: sceneCount default 3, sceneLength default 5
             // Back-compat: if old state used 'auto', coerce to defaults.
@@ -726,6 +828,7 @@ function loadSimpleVideoState() {
             
             // Motion strength for video generation
             SimpleVideoUI.state.motionStrength = normalizeMotionStrength(parsed.motionStrength);
+            SimpleVideoUI.state.scenarioVariation = normalizeScenarioVariation(parsed.scenarioVariation);
 
             // Internal (safe to restore)
             SimpleVideoUI.state.ltxFpsForced = !!parsed.ltxFpsForced;
@@ -923,9 +1026,33 @@ function normalizeI2IRefSource(value) {
 }
 
 function normalizeMotionStrength(value) {
-    // 'small' = stable/subtle motion, 'medium' = balanced, 'large' = dynamic
-    if (value === 'small' || value === 'large') return value;
+    // 'tiny' = minimal motion, 'small' = stable/subtle motion, 'medium' = balanced, 'large' = dynamic
+    if (value === 'tiny' || value === 'small' || value === 'large') return value;
     return 'medium';
+}
+
+function normalizeScenarioVariation(value) {
+    const v = String(value || '').trim().toLowerCase();
+    if (v === 'stable' || v === 'dynamic' || v === 'normal') return v;
+    return 'auto';
+}
+
+function isContinuousLongPreset(presetId) {
+    const pid = String(presetId || '').trim();
+    return pid === 'char_i2i_flf' || pid === 'char_edit_i2i_flf';
+}
+
+function resolveScenarioVariationForCurrentPreset() {
+    const mode = normalizeScenarioVariation(SimpleVideoUI.state.scenarioVariation);
+    if (mode !== 'auto') return mode;
+    return isContinuousLongPreset(SimpleVideoUI.state.selectedPreset) ? 'stable' : 'normal';
+}
+
+function resolveFLFMotionLevelForPromptGeneration({ outputType, motionStrength, presetId }) {
+    if (String(outputType || '') !== 'flf_sequence') return null;
+    const normalized = normalizeMotionStrength(motionStrength || 'medium');
+    if (isContinuousLongPreset(presetId) && normalized === 'medium') return 'small';
+    return normalized;
 }
 
 function normalizeLtxVariant(value) {
@@ -935,7 +1062,11 @@ function normalizeLtxVariant(value) {
 
 function normalizePromptComplexity(value) {
     if (value === 'standard' || value === 'rich') return value;
-    return 'basic';
+    return 'standard';
+}
+
+function normalizeSimpleVideoUiLanguage(value) {
+    return String(value || '').toLowerCase() === 'en' ? 'en' : 'ja';
 }
 
 function inferMediaKindFromFile(file) {
@@ -1090,9 +1221,11 @@ function normalizeTotalLengthSec(value) {
 function saveSimpleVideoState() {
     try {
         const toSave = {
+            uiLanguage: normalizeSimpleVideoUiLanguage(SimpleVideoUI.state.uiLanguage),
             selectedPreset: SimpleVideoUI.state.selectedPreset,
             imagePrompt: SimpleVideoUI.state.imagePrompt,
             llmPrompt: SimpleVideoUI.state.llmPrompt,
+            scenarioIdea: SimpleVideoUI.state.scenarioIdea,
             scenario: SimpleVideoUI.state.scenario,
             sceneCount: SimpleVideoUI.state.sceneCount,
             sceneLengthSec: SimpleVideoUI.state.sceneLengthSec,
@@ -1158,6 +1291,9 @@ function saveSimpleVideoState() {
 
             // Background removal options
             removeBgBeforeGenerate: !!SimpleVideoUI.state.removeBgBeforeGenerate,
+
+            // Scenario variation preference
+            scenarioVariation: normalizeScenarioVariation(SimpleVideoUI.state.scenarioVariation),
 
             // Key image analysis (VLM)
             keyImageAnalysis: SimpleVideoUI.state.keyImageAnalysis || null,
@@ -1281,7 +1417,7 @@ function renderSimpleVideoUI() {
     // Left panel: Image generation area (spec)
     leftPanel.innerHTML = `
         <div class="simple-video-section">
-            <div class="simple-video-section-title with-actions">
+            <div class="simple-video-section-title with-actions simple-video-title-keyimage">
                 <span class="title-left"><i class="fas fa-images"></i> 🖼️キー画像</span>
                 <div class="simple-video-scenario-actions">
                     <button class="simple-video-btn" id="simpleVideoKeyImageAnalyzeBtn" type="button" style="display:none;">🔍 解析</button>
@@ -1313,7 +1449,7 @@ function renderSimpleVideoUI() {
         </div>
 
         <div class="simple-video-section" id="simpleVideoCharacterImageGroup">
-            <div class="simple-video-section-title" id="simpleVideoCharacterImageGroupTitle" style="cursor:pointer;"><i class="fas fa-user-astronaut"></i> キャラクタ画像の生成 <span id="simpleVideoCharacterImageGroupToggleIcon">▼</span></div>
+            <div class="simple-video-section-title simple-video-title-character" id="simpleVideoCharacterImageGroupTitle" style="cursor:pointer;"><i class="fas fa-user-astronaut"></i> キャラクタ画像の生成 <span id="simpleVideoCharacterImageGroupToggleIcon">▼</span></div>
             <div id="simpleVideoCharacterImageGroupContent">
             <div class="simple-video-subsection" id="simpleVideoDropSection">
             <div class="simple-video-section-title with-actions">
@@ -1417,14 +1553,19 @@ function renderSimpleVideoUI() {
             </div>
 
             <div class="simple-video-subsection">
-            <div class="simple-video-section-title"><i class="fas fa-pen"></i> 📝 何を描きたい？</div>
+            <div class="simple-video-section-title" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span><i class="fas fa-pen"></i> 📝 何を描きたい？</span>
+                <button class="simple-video-settings-btn simple-video-inline-btn" id="simpleVideoImagePromptTranslateBtn" type="button" title="プロンプトを翻訳（英⇔日）">🌐 翻訳</button>
+                <button class="simple-video-settings-btn simple-video-inline-btn" id="simpleVideoImagePromptClearBtn" type="button" title="プロンプトをクリア">🗑️ クリア</button>
+            </div>
             <textarea class="simple-video-prompt" id="simpleVideoImagePrompt" placeholder="画像にしたい内容を入力してください..."></textarea>
+            <div class="simple-video-hint" id="simpleVideoRemoveBgHintUnderPrompt">背景をなくしたい場合は、プロンプトで背景色を指定（例: plain white background / 背景は白）</div>
             </div>
 
             <div class="simple-video-generate-row">
-            <label class="simple-video-removebg-label" title="生成前に入力画像の背景を自動削除します">
+            <label class="simple-video-removebg-label" id="simpleVideoRemoveBgLabel" title="生成前に入力画像の背景を自動削除します">
                 <input type="checkbox" id="simpleVideoRemoveBgCheck">
-                <i class="fas fa-scissors"></i> 背景を削除
+                <span id="simpleVideoRemoveBgLabelText"><i class="fas fa-scissors"></i> ✂️ 事前背景削除</span>
             </label>
             <button class="simple-video-generate-btn" id="simpleVideoImageGenBtn">
                 <i class="fas fa-wand-magic-sparkles"></i> 初期画像を生成
@@ -1437,7 +1578,7 @@ function renderSimpleVideoUI() {
         </div>
 
         <div class="simple-video-section">
-            <div class="simple-video-section-title"><i class="fas fa-music"></i> 🎼 BGM生成（ACE-Step 1.5）</div>
+            <div class="simple-video-section-title simple-video-title-music"><i class="fas fa-music"></i> 🎼 音楽生成</div>
             <label class="simple-video-field simple-video-field-wide" style="display:block;margin-bottom:8px;">
                 <span>音楽シナリオ（作詞に優先利用）</span>
                 <textarea class="simple-video-prompt" id="simpleVideoT2AScenario" placeholder="曲のテーマ・感情・展開を入力（未入力時は動画シナリオを利用）" style="min-height:76px;"></textarea>
@@ -1542,7 +1683,7 @@ function renderSimpleVideoUI() {
     // Right panel: Video generation area (spec)
     rightPanel.innerHTML = `
         <div class="simple-video-section">
-            <div class="simple-video-section-title"><i class="fas fa-film"></i> 🎬 出力動画</div>
+            <div class="simple-video-section-title simple-video-title-output"><i class="fas fa-film"></i> 🎬 出力動画</div>
             <div class="simple-video-output" id="simpleVideoOutput">
                 <div class="simple-video-output-preview" id="simpleVideoOutputPreview" aria-label="初期画像プレビュー"></div>
                 <div class="simple-video-output-placeholder">
@@ -1556,6 +1697,9 @@ function renderSimpleVideoUI() {
                 <div class="simple-video-keyimage-meta" id="simpleVideoV2MVideoDropMeta" style="display:none;"></div>
             </div>
         </div>
+
+        <div class="simple-video-section simple-video-section-videogen-group">
+            <div class="simple-video-section-title simple-video-title-videogen"><i class="fas fa-video"></i> 🎬 動画生成</div>
 
         <div class="simple-video-section">
             <div class="simple-video-section-title with-actions">
@@ -1638,9 +1782,18 @@ function renderSimpleVideoUI() {
                 <div class="simple-video-title-inline-field" id="simpleVideoMotionStrengthField" aria-label="動きの強さ">
                     <span>🎬動き</span>
                     <select class="simple-video-select" id="simpleVideoMotionStrength">
+                        <option value="tiny">極小</option>
                         <option value="small">小</option>
                         <option value="medium" selected>中</option>
                         <option value="large">大</option>
+                    </select>
+                </div>
+                <div class="simple-video-title-inline-field" id="simpleVideoScenarioVariationField" aria-label="シナリオ変化">
+                    <span>🧩展開</span>
+                    <select class="simple-video-select" id="simpleVideoScenarioVariation">
+                        <option value="auto" selected>自動</option>
+                        <option value="stable">抑える</option>
+                        <option value="dynamic">大きめ</option>
                     </select>
                 </div>
             </div>
@@ -1719,8 +1872,8 @@ function renderSimpleVideoUI() {
                     <label class="simple-video-inline-check" title="簡単=従来相当、標準=より詳しく、詳細=動画内の動きまで記述します">
                         <span>複雑さ</span>
                         <select class="simple-video-select" id="simpleVideoPromptComplexity" style="min-width:80px; width:88px;">
-                            <option value="basic" selected>簡単</option>
-                            <option value="standard">標準</option>
+                            <option value="basic">簡単</option>
+                            <option value="standard" selected>標準</option>
                             <option value="rich">詳細</option>
                         </select>
                     </label>
@@ -1731,6 +1884,24 @@ function renderSimpleVideoUI() {
                     <button class="simple-video-settings-btn simple-video-inline-btn" id="simpleVideoScenarioTranslateBtn" type="button" title="生成プロンプトを翻訳（英⇔日）">🌐 翻訳</button>
                     <button class="simple-video-icon-btn" id="simpleVideoScenarioClearLLMBtn" type="button" title="生成済みシーンプロンプトをクリア">🗑️</button>
                 </div>
+            </div>
+            <div class="simple-video-form-row" style="margin-top:8px;">
+                <label class="simple-video-field simple-video-field-wide" style="flex:1 1 auto; min-width:260px;">
+                    <span>🎯 ざっくり意図（1〜2文）</span>
+                    <input class="simple-video-input" id="simpleVideoScenarioIdea" placeholder="例: 未来都市で少女が失われた記憶を取り戻す短編" />
+                </label>
+                <div class="simple-video-field simple-video-field-compact" style="align-self:flex-end;">
+                    <button class="simple-video-settings-btn" id="simpleVideoScenarioBuildBtn" type="button" title="短い意図から詳細シナリオ/世界観を作成">🧠 シナリオ作成</button>
+                </div>
+            </div>
+            <div class="simple-video-form-row" style="margin-top:6px; margin-bottom:10px; gap:6px; align-items:center; flex-wrap:wrap;">
+                <span class="simple-video-hint" style="margin:0;">🎨 画風テンプレ:</span>
+                <button class="simple-video-settings-btn simple-video-inline-btn" id="simpleVideoStylePresetReal" type="button" title="リアル寄りの画風指定を挿入">リアル寄り</button>
+                <button class="simple-video-settings-btn simple-video-inline-btn" id="simpleVideoStylePresetAnime" type="button" title="アニメ風の画風指定を挿入">アニメ風</button>
+                <button class="simple-video-settings-btn simple-video-inline-btn" id="simpleVideoStylePresetIllustration" type="button" title="イラスト風の画風指定を挿入">イラスト風</button>
+                <button class="simple-video-settings-btn simple-video-inline-btn" id="simpleVideoStylePresetCinematic" type="button" title="映画風の画風指定を挿入">映画風</button>
+                <button class="simple-video-settings-btn simple-video-inline-btn" id="simpleVideoStylePresetLineart" type="button" title="ラインアート風の画風指定を挿入">ラインアート風</button>
+                <button class="simple-video-settings-btn simple-video-inline-btn" id="simpleVideoStylePresetPixel" type="button" title="ドット絵風の画風指定を挿入">ドット絵風</button>
             </div>
             <textarea class="simple-video-prompt" id="simpleVideoScenario" placeholder="どんな動画を作りたい？"></textarea>
         </div>
@@ -1798,6 +1969,7 @@ function renderSimpleVideoUI() {
                 <textarea class="simple-video-prompt simple-video-generated-prompts-text" id="simpleVideoLLMPrompt" placeholder="（生成されたプロンプトがここに表示されます）"></textarea>
             </div>
         </div>
+        </div>
     `;
     
     // Attach event listeners
@@ -1811,6 +1983,159 @@ function renderSimpleVideoUI() {
 
     // Load generated output files list (async)
     loadSimpleVideoOutputFiles({ resetSelection: true });
+
+    applySimpleVideoUILanguage();
+}
+
+function ensureSimpleVideoLanguageSwitcher() {
+    const actions = document.getElementById('simpleVideoTopbarActions');
+    if (!actions) return;
+
+    let select = document.getElementById('simpleVideoLangSelect');
+    if (!select) {
+        select = document.createElement('select');
+        select.id = 'simpleVideoLangSelect';
+        select.className = 'simple-video-back-btn';
+        select.style.minWidth = '110px';
+        select.innerHTML = '<option value="ja">日本語</option><option value="en">English</option>';
+        actions.insertBefore(select, actions.firstChild || null);
+    }
+
+    select.value = normalizeSimpleVideoUiLanguage(SimpleVideoUI.state.uiLanguage);
+
+    if (!select.dataset.boundLang) {
+        select.addEventListener('change', (e) => {
+            SimpleVideoUI.state.uiLanguage = normalizeSimpleVideoUiLanguage(e.target.value);
+            saveSimpleVideoState();
+            applySimpleVideoUILanguage();
+        });
+        select.dataset.boundLang = '1';
+    }
+}
+
+function applySimpleVideoUILanguage() {
+    const lang = normalizeSimpleVideoUiLanguage(SimpleVideoUI.state.uiLanguage);
+    const dict = SIMPLE_VIDEO_UI_I18N[lang] || SIMPLE_VIDEO_UI_I18N.ja;
+
+    try {
+        document.documentElement.lang = lang;
+    } catch (_e) {}
+
+    const setText = (selector, text) => {
+        const el = document.querySelector(selector);
+        if (el && typeof text === 'string') el.textContent = text;
+    };
+    const setById = (id, text) => {
+        const el = document.getElementById(id);
+        if (el && typeof text === 'string') el.textContent = text;
+    };
+
+    const langSelect = document.getElementById('simpleVideoLangSelect');
+    if (langSelect) {
+        const jaOpt = langSelect.querySelector('option[value="ja"]');
+        const enOpt = langSelect.querySelector('option[value="en"]');
+        if (jaOpt) jaOpt.textContent = dict.langJa;
+        if (enOpt) enOpt.textContent = dict.langEn;
+        langSelect.value = lang;
+    }
+
+    setText('.simple-video-title', dict.topbarTitle);
+    setById('simpleVideoFilesBtn', dict.filesBtn);
+    setById('simpleVideoHelpBtn', dict.helpBtn);
+    setById('simpleVideoBackBtn', dict.homeBtn);
+
+    document.querySelectorAll('.sv-loading').forEach((el) => {
+        el.textContent = dict.loading;
+    });
+
+    setText('.floating-guide-title', dict.guideTitle);
+    setText('#floatingGuideTabs [data-doc-key="tutorial"]', dict.guideTutorial);
+    setText('#floatingGuideTabs [data-doc-key="tutorial_full"]', dict.guideTutorialFull);
+    setText('#floatingGuideTabs [data-doc-key="guide"]', dict.guideGuide);
+    setText('#floatingGuideTabs [data-doc-key="technical"]', dict.guideTechnical);
+    const guideLoading = document.querySelector('.floating-guide-loading');
+    if (guideLoading) guideLoading.textContent = dict.guideLoading;
+
+    const keyTitle = document.querySelector('.simple-video-title-keyimage .title-left');
+    if (keyTitle) keyTitle.innerHTML = `<i class="fas fa-images"></i> ${dict.keyImageTitle}`;
+    const musicTitle = document.querySelector('.simple-video-title-music');
+    if (musicTitle) musicTitle.innerHTML = `<i class="fas fa-music"></i> ${dict.musicTitle}`;
+    const outputTitle = document.querySelector('.simple-video-title-output');
+    if (outputTitle) outputTitle.innerHTML = `<i class="fas fa-film"></i> ${dict.outputTitle}`;
+    const videoGenTitle = document.querySelector('.simple-video-title-videogen');
+    if (videoGenTitle) videoGenTitle.innerHTML = `<i class="fas fa-video"></i> ${dict.videoGenTitle}`;
+
+    const characterGroupToggle = document.getElementById('simpleVideoCharacterImageGroupToggleIcon');
+    const characterTitle = document.getElementById('simpleVideoCharacterImageGroupTitle');
+    if (characterTitle) {
+        characterTitle.innerHTML = `<i class="fas fa-user-astronaut"></i> ${dict.characterGenTitle} <span id="simpleVideoCharacterImageGroupToggleIcon">${characterGroupToggle?.textContent || '▼'}</span>`;
+    }
+
+    const sequenceTitle = document.querySelector('#simpleVideoSequenceSelect')
+        ?.closest('.simple-video-section')
+        ?.querySelector('.simple-video-section-title .title-left');
+    if (sequenceTitle) sequenceTitle.innerHTML = `<i class="fas fa-list"></i> ${dict.sequenceTitle}`;
+
+    const settingsToggle = document.getElementById('simpleVideoVideoSettingsToggleIcon');
+    const videoSettingsTitle = document.getElementById('simpleVideoVideoSettingsTitle');
+    if (videoSettingsTitle) {
+        const left = videoSettingsTitle.querySelector('.title-left');
+        if (left) {
+            left.innerHTML = `<i class="fas fa-cog"></i> ${dict.videoSettingsTitle} <span id="simpleVideoVideoSettingsToggleIcon">${settingsToggle?.textContent || '▼'}</span>`;
+        }
+    }
+
+    const scenarioTitle = document.querySelector('#simpleVideoScenario')
+        ?.closest('.simple-video-section')
+        ?.querySelector('.simple-video-section-title .title-left');
+    if (scenarioTitle) scenarioTitle.innerHTML = `<i class="fas fa-scroll"></i> ${dict.scenarioTitle}`;
+
+    const internalToggle = document.getElementById('simpleVideoInternalImagesToggleIcon');
+    const internalTitle = document.getElementById('simpleVideoInternalImagesTitle');
+    if (internalTitle) {
+        const left = internalTitle.querySelector('.title-left');
+        if (left) {
+            left.innerHTML = `<i class="fas fa-image"></i> ${dict.internalRefTitle} <span id="simpleVideoInternalImagesToggleIcon">${internalToggle?.textContent || '▼'}</span>`;
+        }
+    }
+
+    const generatedTitle = document.querySelector('#simpleVideoGeneratedPromptsWrap .simple-video-section-title .title-left');
+    if (generatedTitle) generatedTitle.innerHTML = `<i class="fas fa-robot"></i> ${dict.generatedPromptTitle}`;
+
+    setById('simpleVideoImagePromptTranslateBtn', dict.imagePromptTranslate);
+    setById('simpleVideoImagePromptClearBtn', dict.imagePromptClear);
+    setById('simpleVideoRemoveBgHintUnderPrompt', dict.removeBgHint);
+    const removeBgLabelText = document.getElementById('simpleVideoRemoveBgLabelText');
+    if (removeBgLabelText) removeBgLabelText.innerHTML = `<i class="fas fa-scissors"></i> ${dict.removeBgLabel}`;
+    const removeBgLabel = document.getElementById('simpleVideoRemoveBgLabel');
+    if (removeBgLabel) removeBgLabel.title = dict.removeBgHint;
+    setById('simpleVideoScenarioTranslateBtn', dict.scenarioTranslate);
+    setById('simpleVideoScenarioBuildBtn', dict.scenarioBuild);
+    setById('simpleVideoPromptGenBtn', dict.promptGenerate);
+    setById('simpleVideoVideoInitImageBtn', dict.preGenerateImages);
+    setById('simpleVideoGenerateBtn', dict.generateVideo);
+    setById('simpleVideoV2MBtn', dict.videoToMusic);
+    setById('simpleVideoStopBtn', dict.stopGenerate);
+    setById('simpleVideoContinueBtn', dict.continueBtn);
+    setById('simpleVideoRegenAllScenesBtn', dict.regenAllScenes);
+    setById('simpleVideoRestartM2VBtn', dict.restartFromStart);
+    setById('simpleVideoPauseAtIntermediateBtn', dict.pauseAdjust);
+    setById('simpleVideoGeneratedTranslateBtn', dict.generatedTranslate);
+
+    setById('selectAllBtn', dict.selectAll);
+    setById('deselectAllBtn', dict.deselect);
+    setById('deleteSelectedBtn', dict.deleteBtn);
+
+    const countEl = document.getElementById('outputFileCount');
+    if (countEl) {
+        const n = Number(String(countEl.textContent || '').match(/\d+/)?.[0] || 0);
+        countEl.textContent = `${n}${dict.outputFileCountSuffix}`;
+    }
+    const selectedCountEl = document.getElementById('outputSelectedCount');
+    const selectedNum = Number(document.getElementById('selectedNum')?.textContent || 0);
+    if (selectedCountEl) {
+        selectedCountEl.innerHTML = `${dict.selectedPrefix}<span id="selectedNum">${selectedNum}</span>`;
+    }
 }
 
 /* ========================================
@@ -1818,6 +2143,16 @@ function renderSimpleVideoUI() {
    ======================================== */
 
 function attachSimpleVideoEventListeners() {
+    const langSelect = document.getElementById('simpleVideoLangSelect');
+    if (langSelect && !langSelect.dataset.boundLang) {
+        langSelect.addEventListener('change', (e) => {
+            SimpleVideoUI.state.uiLanguage = normalizeSimpleVideoUiLanguage(e.target.value);
+            saveSimpleVideoState();
+            applySimpleVideoUILanguage();
+        });
+        langSelect.dataset.boundLang = '1';
+    }
+
     // Back button
     const backBtn = document.getElementById('simpleVideoBackBtn');
     if (backBtn) {
@@ -1928,6 +2263,23 @@ function attachSimpleVideoEventListeners() {
             saveSimpleVideoState();
         });
     }
+
+    const imagePromptTranslateBtn = document.getElementById('simpleVideoImagePromptTranslateBtn');
+    imagePromptTranslateBtn?.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await translateSimpleVideoImagePrompt();
+    });
+
+    const imagePromptClearBtn = document.getElementById('simpleVideoImagePromptClearBtn');
+    imagePromptClearBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const el = document.getElementById('simpleVideoImagePrompt');
+        if (el) {
+            el.value = '';
+            SimpleVideoUI.state.imagePrompt = '';
+            saveSimpleVideoState();
+        }
+    });
 
     const t2aTagsInput = document.getElementById('simpleVideoT2ATags');
     t2aTagsInput?.addEventListener('input', (e) => {
@@ -2192,6 +2544,53 @@ function attachSimpleVideoEventListeners() {
 
     // Scenario (right column)
     const scenarioInput = document.getElementById('simpleVideoScenario');
+    const scenarioIdeaInput = document.getElementById('simpleVideoScenarioIdea');
+    const scenarioBuildBtn = document.getElementById('simpleVideoScenarioBuildBtn');
+
+    if (scenarioIdeaInput) {
+        scenarioIdeaInput.addEventListener('input', (e) => {
+            SimpleVideoUI.state.scenarioIdea = e.target.value;
+            saveSimpleVideoState();
+        });
+    }
+
+    scenarioBuildBtn?.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await generateSimpleVideoScenarioFromIdea();
+    });
+
+    const stylePresetRealBtn = document.getElementById('simpleVideoStylePresetReal');
+    const stylePresetAnimeBtn = document.getElementById('simpleVideoStylePresetAnime');
+    const stylePresetIllustrationBtn = document.getElementById('simpleVideoStylePresetIllustration');
+    const stylePresetCinematicBtn = document.getElementById('simpleVideoStylePresetCinematic');
+    const stylePresetLineartBtn = document.getElementById('simpleVideoStylePresetLineart');
+    const stylePresetPixelBtn = document.getElementById('simpleVideoStylePresetPixel');
+
+    stylePresetRealBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        applySimpleVideoStylePresetToScenario('real');
+    });
+    stylePresetAnimeBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        applySimpleVideoStylePresetToScenario('anime');
+    });
+    stylePresetIllustrationBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        applySimpleVideoStylePresetToScenario('illustration');
+    });
+    stylePresetCinematicBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        applySimpleVideoStylePresetToScenario('cinematic');
+    });
+    stylePresetLineartBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        applySimpleVideoStylePresetToScenario('lineart');
+    });
+    stylePresetPixelBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        applySimpleVideoStylePresetToScenario('pixel');
+    });
+
     if (scenarioInput) {
         scenarioInput.addEventListener('focus', () => {
             SimpleVideoUI.lastPromptTarget = 'scenario';
@@ -2421,9 +2820,18 @@ function attachSimpleVideoEventListeners() {
     const motionStrengthSelect = document.getElementById('simpleVideoMotionStrength');
     if (motionStrengthSelect) {
         motionStrengthSelect.addEventListener('change', (e) => {
-            SimpleVideoUI.state.motionStrength = e.target.value || 'medium';
+            SimpleVideoUI.state.motionStrength = normalizeMotionStrength(e.target.value || 'medium');
             saveSimpleVideoState();
             console.log(`[SimpleVideo] Motion strength set to: ${SimpleVideoUI.state.motionStrength}`);
+        });
+    }
+
+    const scenarioVariationSelect = document.getElementById('simpleVideoScenarioVariation');
+    if (scenarioVariationSelect) {
+        scenarioVariationSelect.addEventListener('change', (e) => {
+            SimpleVideoUI.state.scenarioVariation = normalizeScenarioVariation(e.target.value || 'auto');
+            saveSimpleVideoState();
+            console.log(`[SimpleVideo] Scenario variation set to: ${SimpleVideoUI.state.scenarioVariation}`);
         });
     }
 
@@ -3038,6 +3446,46 @@ function attachSimpleVideoEventListeners() {
             }
         });
 
+        // --- Drag & Drop + Click upload for characterImage / preparedInitialImage ---
+        internalImagesWrap.addEventListener('dragover', (e) => {
+            const item = e.target.closest('.simple-video-internal-image-item[data-uploadable]');
+            if (!item) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            item.classList.add('dragover');
+        });
+        internalImagesWrap.addEventListener('dragleave', (e) => {
+            const item = e.target.closest('.simple-video-internal-image-item[data-uploadable]');
+            if (item) item.classList.remove('dragover');
+        });
+        internalImagesWrap.addEventListener('drop', async (e) => {
+            const item = e.target.closest('.simple-video-internal-image-item[data-uploadable]');
+            if (!item) return;
+            e.preventDefault();
+            item.classList.remove('dragover');
+            const key = item.dataset.key;
+            let file = e.dataTransfer?.files?.[0] || null;
+            if (!file) {
+                file = await getDroppedFileFromFilesPanel(e.dataTransfer);
+            }
+            if (file) await uploadInternalImage(key, file);
+        });
+        // Click on empty slot to pick file
+        internalImagesWrap.addEventListener('click', (e) => {
+            const item = e.target.closest('.simple-video-internal-image-item.empty-slot[data-uploadable]');
+            if (!item) return;
+            // Don't trigger if clicking clear button
+            if (e.target.closest('.simple-video-internal-image-clear')) return;
+            const key = item.dataset.key;
+            const inp = document.createElement('input');
+            inp.type = 'file';
+            inp.accept = 'image/*';
+            inp.onchange = async () => {
+                if (inp.files?.[0]) await uploadInternalImage(key, inp.files[0]);
+            };
+            inp.click();
+        });
+
         // Clear all button
         const internalClearAllBtn = document.getElementById('simpleVideoInternalImagesClearAll');
         if (internalClearAllBtn) {
@@ -3266,6 +3714,236 @@ function extractPromptsFromPromptGenerateResult(payload) {
     return null;
 }
 
+function applySimpleVideoPromptGuardrails(prompts, options = {}) {
+    const list = Array.isArray(prompts) ? prompts : [];
+    const characterToken = String(options.characterToken || '').trim();
+    const hasCharacterRef = !!options.hasCharacterRef;
+    const lineartSpecialMode = !!options.lineartSpecialMode;
+    const pixelSpecialMode = !!options.pixelSpecialMode;
+
+    const splitLayoutRegexes = [
+        /split\s*[- ]?screen/gi,
+        /multi\s*[- ]?panel/gi,
+        /comic\s*[- ]?panel/gi,
+        /storyboard\s*(grid|layout)?/gi,
+        /layered\s+composition/gi,
+        /layer\s*[- ]?separated\s+composition/gi,
+        /segmented\s+composition/gi,
+        /fragmented\s+frame/gi,
+        /tiled\s+layout/gi,
+        /collage/gi,
+        /diptych/gi,
+        /triptych/gi,
+        /quadtych/gi,
+        /four\s*[- ]?(way|panel)\s*split/gi,
+        /\b4\s*[- ]?(way|panel)\s*split\b/gi,
+        /divided\s+frame/gi,
+        /grid\s+layout/gi,
+        /quadrant(s)?/gi,
+        /分割(画面|構図)?/g,
+        /[2-9]分割/g,
+        /コマ割り/g,
+        /レイヤ[ー]?分割/g,
+        /層(分割|構図)/g,
+        /断片的(構図|画面)/g,
+        /複数(パネル|画面|フレーム)/g,
+    ];
+
+    let layoutFixCount = 0;
+    let continuityFixCount = 0;
+    let lineartFixCount = 0;
+    let pixelFixCount = 0;
+    let duplicateFixCount = 0;
+
+    const guarded = list.map((raw) => {
+        let prompt = String(raw || '').trim();
+        if (!prompt) return '';
+
+        for (const re of splitLayoutRegexes) {
+            const matched = prompt.match(re);
+            if (matched && matched.length > 0) {
+                layoutFixCount += matched.length;
+                prompt = prompt.replace(re, 'single full-frame composition');
+            }
+        }
+
+        const needsSingleFrame = !/single\s+full\s*[- ]?frame|no\s+split\s*[- ]?screen|no\s+collage/i.test(prompt);
+        const needsContinuity = (characterToken || hasCharacterRef)
+            && !/keep\s+the\s+same\s+main\s+subject|subject\s+identity\s+consistent|reference-image\s+lock/i.test(prompt);
+        const needsNoDuplicate = !/exactly\s+one\s+primary\s+subject|no\s+duplicate\s+character|no\s+cloned\s+duplicates|single\s+main\s+subject\s+instance/i.test(prompt);
+
+        if (needsSingleFrame || needsContinuity || needsNoDuplicate) {
+            const suffixParts = [];
+            if (needsSingleFrame) {
+                suffixParts.push('Single full-frame composition only; no split-screen, collage, or multi-panel layout.');
+            }
+            if (needsContinuity) {
+                if (characterToken) {
+                    suffixParts.push(`Keep the same main subject identity as ${characterToken} across scenes.`);
+                } else {
+                    suffixParts.push('Keep the same main subject identity as the provided reference image across scenes.');
+                }
+                if (hasCharacterRef) {
+                    suffixParts.push('Match face, age impression, hairstyle, and silhouette to the reference image.');
+                }
+                continuityFixCount += 1;
+            }
+            if (needsNoDuplicate) {
+                suffixParts.push('Exactly one primary subject instance in frame unless crowd/group is explicitly requested.');
+                suffixParts.push('No duplicate character clones in one frame.');
+                duplicateFixCount += 1;
+            }
+            prompt = `${prompt} ${suffixParts.join(' ')}`.trim();
+        }
+
+        if (lineartSpecialMode) {
+            const needLineartCore = !/line\s*art|clean\s+linework|ink\s+outline|monochrome\s+or\s+limited\s+palette/i.test(prompt);
+            if (needLineartCore) {
+                prompt = `${prompt} Line-art style, clean linework, crisp ink outlines, minimal shading, mostly monochrome or limited palette.`.trim();
+                lineartFixCount += 1;
+            }
+        }
+
+        if (pixelSpecialMode) {
+            const needPixelCore = !/pixel\s*art|hard\s+pixel\s+edges|no\s+anti-?aliasing|limited\s+(8-?bit|16-?bit)/i.test(prompt);
+            const needLowMotion = !/minimal\s+motion|near-?static|static\s+camera|tiny\s+movement|no\s+motion\s+blur/i.test(prompt);
+            if (needPixelCore || needLowMotion) {
+                const pixelSuffix = [];
+                if (needPixelCore) {
+                    pixelSuffix.push('Pixel art look, hard pixel edges, no anti-aliasing, limited 8-bit/16-bit palette, preserve chunky blocky pixels.');
+                    pixelSuffix.push('Avoid smooth gradients and realistic micro-detail.');
+                }
+                if (needLowMotion) {
+                    pixelSuffix.push('Minimal motion only, near-static camera, tiny pose changes, no motion blur.');
+                }
+                prompt = `${prompt} ${pixelSuffix.join(' ')}`.trim();
+                pixelFixCount += 1;
+            }
+        }
+
+        return prompt;
+    });
+
+    return {
+        prompts: guarded,
+        stats: {
+            layoutFixCount,
+            continuityFixCount,
+            lineartFixCount,
+            pixelFixCount,
+            duplicateFixCount,
+            touchedPrompts: guarded.length,
+        },
+    };
+}
+
+function detectSimpleVideoScenarioStylePresetKey(scenarioText) {
+    const text = String(scenarioText || '');
+    if (!text) return null;
+
+    const blockMatch = text.match(/\[STYLE_ANCHOR\]([\s\S]*?)\[\/STYLE_ANCHOR\]/m);
+    const anchorBody = String(blockMatch?.[1] || text);
+    const styleLine = anchorBody.match(/Style\s*preset\s*:\s*(.+)/i);
+    const styleLabel = String(styleLine?.[1] || '').trim();
+
+    if (styleLabel) {
+        const found = Object.entries(SIMPLE_VIDEO_STYLE_PRESET_ANCHORS).find(([, preset]) => {
+            return String(preset?.label || '').trim() === styleLabel;
+        });
+        if (found) return String(found[0]);
+    }
+
+    const lower = anchorBody.toLowerCase();
+    if (/pixel\s*art|8-?bit|16-?bit|ドット/.test(lower)) return 'pixel';
+    if (/line\s*art|ink\s+outline|ラインアート/.test(lower)) return 'lineart';
+    if (/anime|cel\s*[- ]?shad|アニメ/.test(lower)) return 'anime';
+    if (/painterly|illustration|イラスト/.test(lower)) return 'illustration';
+    if (/cinematic|film\s*look|映画/.test(lower)) return 'cinematic';
+    if (/realistic|live-?action|photoreal|リアル/.test(lower)) return 'real';
+    return null;
+}
+
+function applySimpleVideoStyleConsistencyGuardrails(prompts, options = {}) {
+    const list = Array.isArray(prompts) ? prompts : [];
+    const styleKey = String(options.styleKey || '').trim();
+    const preset = SIMPLE_VIDEO_STYLE_PRESET_ANCHORS[styleKey];
+    if (!preset) {
+        return {
+            prompts: list.map((p) => String(p || '').trim()),
+            stats: { styleFixCount: 0, styleConflictFixCount: 0, styleKey: null },
+        };
+    }
+
+    const stylePresenceRegex = {
+        real: /(realistic|live-?action|photoreal)/i,
+        anime: /(anime|cel\s*[- ]?shad)/i,
+        illustration: /(illustration|painterly|brush\s*texture)/i,
+        cinematic: /(cinematic|film\s*look)/i,
+        lineart: /(line\s*art|clean\s+linework|ink\s+outline)/i,
+        pixel: /(pixel\s*art|8-?bit|16-?bit|pixel\s*edge)/i,
+    };
+
+    const styleConflictRegexMap = {
+        real: [/(anime|cel\s*[- ]?shad|toon\s*shad|cartoon\s*look|manga\s*style|line\s*art|ink\s*outline|pixel\s*art|8-?bit|16-?bit|painterly|illustration)/gi],
+        anime: [/(photoreal|live-?action|pixel\s*art|8-?bit|16-?bit)/gi],
+        illustration: [/(photoreal|live-?action|pixel\s*art|8-?bit|16-?bit)/gi],
+        cinematic: [/(anime|cel\s*[- ]?shad|pixel\s*art|8-?bit|16-?bit)/gi],
+        lineart: [/(photoreal|live-?action|pixel\s*art|8-?bit|16-?bit|heavy\s+paint|painterly)/gi],
+        pixel: [/(photoreal|live-?action|ultra\s*detailed|anime\s*cel\s*[- ]?shaded|painterly)/gi],
+    };
+
+    const mustKeepLines = (() => {
+        const lines = [String(preset.body?.[0] || '').trim(), String(preset.body?.[preset.body.length - 1] || '').trim()]
+            .filter(Boolean);
+        if (styleKey === 'pixel') {
+            const pixelPalette = String(preset.body?.[1] || '').trim();
+            if (pixelPalette) lines.push(pixelPalette);
+        }
+        if (styleKey === 'lineart') {
+            const lineartTone = String(preset.body?.[2] || '').trim();
+            if (lineartTone) lines.push(lineartTone);
+        }
+        return Array.from(new Set(lines));
+    })();
+
+    let styleFixCount = 0;
+    let styleConflictFixCount = 0;
+
+    const guarded = list.map((raw) => {
+        let prompt = String(raw || '').trim();
+        if (!prompt) return '';
+
+        const beforeConflict = prompt;
+        for (const re of (styleConflictRegexMap[styleKey] || [])) {
+            prompt = prompt.replace(re, '');
+        }
+        if (prompt !== beforeConflict) styleConflictFixCount += 1;
+        prompt = prompt.replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').trim();
+
+        const hasStyleCore = (stylePresenceRegex[styleKey] || /.^/).test(prompt);
+        const missingLines = mustKeepLines.filter((line) => !prompt.toLowerCase().includes(line.toLowerCase()));
+
+        if (!hasStyleCore || missingLines.length > 0) {
+            const suffix = [];
+            if (!hasStyleCore && mustKeepLines[0]) suffix.push(mustKeepLines[0]);
+            for (const line of missingLines) {
+                if (!suffix.includes(line)) suffix.push(line);
+            }
+            if (suffix.length > 0) {
+                prompt = `${prompt} ${suffix.join(' ')}`.trim();
+                styleFixCount += 1;
+            }
+        }
+
+        return prompt;
+    });
+
+    return {
+        prompts: guarded,
+        stats: { styleFixCount, styleConflictFixCount, styleKey },
+    };
+}
+
 async function generateSimpleVideoPrompts() {
     const { state } = SimpleVideoUI;
 
@@ -3284,13 +3962,48 @@ async function generateSimpleVideoPrompts() {
     }
 
     const preset = VIDEO_PRESETS.find((p) => p.id === state.selectedPreset) || null;
+    const scenarioStyleKey = detectSimpleVideoScenarioStylePresetKey(scenarioPrompt);
+    const lineartSpecialMode = scenarioStyleKey === 'lineart';
+    const pixelSpecialMode = scenarioStyleKey === 'pixel';
     const sceneCount = getEffectiveSceneCountForPromptGeneration();
     const outputType = pickPromptOutputTypeForPreset(preset);
     const targetWorkflow = preset ? pickTargetWorkflowForPromptGeneration(preset) : null;
+    const selectedCharacterToken = getSimpleVideoCharacterToken(state.selectedCharacter);
+    const hasCharacterRef = !!String(state.characterImage?.filename || '').trim()
+        || !!String(state.preparedInitialImage?.filename || '').trim()
+        || !!String((Array.isArray(state.dropSlots) ? state.dropSlots[0]?.filename : '') || '').trim();
+    const characterPromptGuard = [];
+    if (selectedCharacterToken) {
+        characterPromptGuard.push(
+            `Character lock: keep the same main subject identity as ${selectedCharacterToken} in every scene.`
+        );
+    }
+    if (hasCharacterRef) {
+        characterPromptGuard.push(
+            'Reference-image lock: keep the same face, age impression, hairstyle, and silhouette as the provided reference image.'
+        );
+    }
+    if (characterPromptGuard.length > 0) {
+        characterPromptGuard.push('Do not replace the subject with a different person type.');
+    }
+    if (lineartSpecialMode) {
+        characterPromptGuard.push('Line-art mode: keep clean linework, crisp ink outlines, minimal shading, and simple monochrome or limited palette rendering.');
+        characterPromptGuard.push('Line-art mode: keep visual details simplified and avoid photoreal material rendering.');
+    }
+    if (pixelSpecialMode) {
+        characterPromptGuard.push('Pixel-art mode: keep hard pixel edges, no anti-aliasing, limited 8-bit/16-bit palette, and chunky blocky pixel texture.');
+        characterPromptGuard.push('Pixel-art mode: keep motion minimal with near-static camera, tiny pose changes, and no motion blur.');
+    }
+    const promptInput = characterPromptGuard.length > 0
+        ? `${scenarioPrompt}\n\n${characterPromptGuard.join('\n')}`
+        : scenarioPrompt;
     // Map motionStrength to FLF motion level for prompt generation
-    const flfMotionLevel = outputType === 'flf_sequence'
-        ? (state.motionStrength || 'medium')
-        : null;
+    const flfMotionLevel = resolveFLFMotionLevelForPromptGeneration({
+        outputType,
+        motionStrength: state.motionStrength,
+        presetId: preset?.id,
+    });
+    const sceneVariation = resolveScenarioVariationForCurrentPreset();
 
     // If LLM prompt generation is disabled, just copy the scenario text as-is.
     if (!state.scenarioUseLLM) {
@@ -3342,10 +4055,11 @@ async function generateSimpleVideoPrompts() {
     try {
         const requestBody = {
             workflow: 'prompt_generate',
-            user_prompt: scenarioPrompt,
+            user_prompt: promptInput,
             scene_count: sceneCount,
             output_type: outputType,
             prompt_complexity: normalizePromptComplexity(state.promptComplexity),
+            scene_variation: sceneVariation,
             translation_mode: false,
         };
         if (targetWorkflow) requestBody.target_workflow = targetWorkflow;
@@ -3389,7 +4103,20 @@ async function generateSimpleVideoPrompts() {
             throw new Error('プロンプト生成結果の形式が不正です');
         }
 
-        const formatted = prompts
+        const guardrailResult = applySimpleVideoPromptGuardrails(prompts, {
+            characterToken: selectedCharacterToken,
+            hasCharacterRef,
+            lineartSpecialMode,
+            pixelSpecialMode,
+        });
+        const styleKeyDetected = scenarioStyleKey;
+        const styleKey = styleKeyDetected;
+        const styleGuardResult = applySimpleVideoStyleConsistencyGuardrails(guardrailResult.prompts, { styleKey });
+        const safePrompts = styleGuardResult.prompts;
+        const guardStats = guardrailResult.stats || {};
+        const styleStats = styleGuardResult.stats || {};
+
+        const formatted = safePrompts
             .map((p, i) => `#${i + 1}: ${String(p || '').trim()}`)
             .join('\n');
 
@@ -3403,7 +4130,20 @@ async function generateSimpleVideoPrompts() {
         if (promptsWrap) promptsWrap.style.display = '';
 
         setSimpleVideoProgress('✅ プロンプト生成完了', 1);
-        if (typeof showToast === 'function') showToast(`✅ ${prompts.length}個のプロンプトを生成しました`, 'success');
+        if (typeof showToast === 'function') {
+            const fixCount = Number(guardStats.layoutFixCount || 0)
+                + Number(guardStats.continuityFixCount || 0)
+                + Number(guardStats.duplicateFixCount || 0)
+                + Number(guardStats.lineartFixCount || 0)
+                + Number(guardStats.pixelFixCount || 0)
+                + Number(styleStats.styleFixCount || 0)
+                + Number(styleStats.styleConflictFixCount || 0);
+            if (fixCount > 0) {
+                showToast(`✅ ${safePrompts.length}個のプロンプトを生成（ガードレール補正 ${fixCount}件）`, 'success');
+            } else {
+                showToast(`✅ ${safePrompts.length}個のプロンプトを生成しました`, 'success');
+            }
+        }
 
         // Guide user if no preset is selected yet
         if (!state.selectedPreset) {
@@ -4357,6 +5097,125 @@ function simpleVideoInsertTextIntoBestPrompt(text) {
     saveSimpleVideoState();
 }
 
+const SIMPLE_VIDEO_STYLE_PRESET_ANCHORS = {
+    real: {
+        label: 'リアル寄り',
+        body: [
+            'Visual style: realistic live-action look, natural texture, realistic skin/material response.',
+            'Color mood: restrained and natural palette, avoid over-saturation.',
+            'Lighting: physically plausible natural light, soft contrast.',
+            'Rendering constraints: no anime/cel-shaded look, no line-art/cartoon rendering, no painterly stylization.',
+            'Composition: single full-frame composition only; no split-screen, no collage, no comic-panel, no multi-panel layout, no layered or segmented composition.',
+        ],
+    },
+    anime: {
+        label: 'アニメ風',
+        body: [
+            'Visual style: anime cel-shaded look, clean line art, stylized but coherent anatomy.',
+            'Color mood: controlled color blocks with clear palette consistency.',
+            'Lighting: anime-style directional lighting with readable highlights/shadows.',
+            'Composition: single full-frame composition only; no split-screen, no collage, no comic-panel, no multi-panel layout.',
+        ],
+    },
+    illustration: {
+        label: 'イラスト風',
+        body: [
+            'Visual style: painterly illustration look, visible brush texture, soft stylization.',
+            'Color mood: harmonized palette with gentle transitions.',
+            'Lighting: illustrative light design with clear focal emphasis.',
+            'Composition: single full-frame composition only; no split-screen, no collage, no comic-panel, no multi-panel layout.',
+        ],
+    },
+    cinematic: {
+        label: '映画風',
+        body: [
+            'Visual style: cinematic film look, grounded realism with deliberate framing.',
+            'Color mood: cinematic grade, controlled contrast and tonal consistency.',
+            'Lighting: motivated practical lighting with dramatic but natural falloff.',
+            'Composition: single full-frame composition only; no split-screen, no collage, no comic-panel, no multi-panel layout.',
+        ],
+    },
+    lineart: {
+        label: 'ラインアート風',
+        body: [
+            'Visual style: line-art look, clean linework, crisp ink outlines, simplified forms.',
+            'Color mood: monochrome or limited palette, restrained tone variation.',
+            'Shading: minimal shading and hatching-like detail, avoid painterly/photoreal rendering.',
+            'Composition: single full-frame composition only; no split-screen, no collage, no comic-panel, no multi-panel layout.',
+        ],
+    },
+    pixel: {
+        label: 'ドット絵風',
+        body: [
+            'Visual style: pixel art look, hard pixel edges, no anti-aliasing, retro game aesthetic.',
+            'Color mood: limited 8-bit/16-bit style palette with strict color consistency.',
+            'Texture: preserve blocky pixel structure, avoid smooth gradients and realistic micro-detail.',
+            'Composition: single full-frame composition only; no split-screen, no collage, no comic-panel, no multi-panel layout.',
+        ],
+    },
+};
+
+function buildSimpleVideoStyleAnchorBlock(styleKey) {
+    const preset = SIMPLE_VIDEO_STYLE_PRESET_ANCHORS[String(styleKey || '').trim()];
+    if (!preset) return null;
+    return [
+        '[STYLE_ANCHOR]',
+        `Style preset: ${preset.label}`,
+        ...preset.body,
+        '[/STYLE_ANCHOR]'
+    ].join('\n');
+}
+
+function applySimpleVideoStylePresetToScenario(styleKey) {
+    const scenarioEl = document.getElementById('simpleVideoScenario');
+    if (!scenarioEl) return;
+
+    const block = buildSimpleVideoStyleAnchorBlock(styleKey);
+    if (!block) return;
+
+    const current = String(scenarioEl.value || '');
+    const withBlock = /\[STYLE_ANCHOR\][\s\S]*?\[\/STYLE_ANCHOR\]/m.test(current)
+        ? current.replace(/\[STYLE_ANCHOR\][\s\S]*?\[\/STYLE_ANCHOR\]/m, block)
+        : `${current.trim()}${current.trim() ? '\n\n' : ''}${block}`;
+
+    scenarioEl.value = withBlock;
+    SimpleVideoUI.lastPromptTarget = 'scenario';
+    SimpleVideoUI.state.scenario = withBlock;
+    invalidateGeneratedIntermediateImages();
+    saveSimpleVideoState();
+    updateGenerateButtonState();
+    try { scenarioEl.focus(); } catch (_e) {}
+
+    const preset = SIMPLE_VIDEO_STYLE_PRESET_ANCHORS[String(styleKey || '').trim()];
+    if (preset && typeof showToast === 'function') {
+        showToast(`🎨 ${preset.label} の画風指定をシナリオに挿入しました`, 'success');
+    }
+
+    // Standardize default scene length for style-driven generation.
+    // User request: all styles should use 5s as the baseline.
+    SimpleVideoUI.state.sceneLengthSec = '5';
+
+    if (String(styleKey || '') === 'lineart') {
+        SimpleVideoUI.state.motionStrength = 'small';
+        SimpleVideoUI.state.promptComplexity = 'basic';
+        saveSimpleVideoState();
+        updateSimpleVideoUI();
+        if (typeof showToast === 'function') {
+            showToast('🖊️ ラインアート向け設定を適用しました（動き=小、複雑さ=簡単、シーン長は5秒基準）', 'info');
+        }
+    }
+    if (String(styleKey || '') === 'pixel') {
+        // Pixel-art tends to break when motion is large; bias to low-motion defaults.
+        SimpleVideoUI.state.motionStrength = 'small';
+        SimpleVideoUI.state.promptComplexity = 'basic';
+        saveSimpleVideoState();
+        updateSimpleVideoUI();
+        if (typeof showToast === 'function') {
+            showToast('🧩 ドット絵向け設定を適用しました（動き=小、複雑さ=簡単、シーン長は5秒基準）', 'info');
+        }
+    }
+}
+
 async function renderSimpleVideoCharacters() {
     const statusEl = document.getElementById('simpleVideoCharactersStatus');
     const row = document.getElementById('simpleVideoCharactersRow');
@@ -4468,6 +5327,52 @@ async function renderSimpleVideoCharacters() {
         console.error('[SimpleVideo] list ref images error:', err);
         setStatus('ERR');
         row.innerHTML = '<div class="simple-video-hint">キャラクタ一覧の取得に失敗しました</div>';
+    }
+}
+
+async function uploadInternalImage(key, file) {
+    if (!SimpleVideoUI.initialized) return;
+    try {
+        if (!file) return;
+        const kind = inferMediaKindFromFile(file);
+        if (kind !== 'image') {
+            if (typeof showToast === 'function') showToast('画像ファイルを選択してください', 'warning');
+            return;
+        }
+
+        const uploaded = await uploadSimpleVideoFile(file);
+        const base = getSimpleVideoBaseURL();
+        const filename = uploaded?.filename;
+        if (!filename) throw new Error('Upload response missing filename');
+        const previewUrl = `${base}/api/v1/files/${encodeURIComponent(filename)}`;
+
+        const imgData = { filename, previewUrl, prompt: '' };
+
+        // Set to the target key
+        SimpleVideoUI.state[key] = imgData;
+
+        // If characterImage is uploaded, also reflect to preparedInitialImage
+        if (key === 'characterImage') {
+            SimpleVideoUI.state.preparedInitialImage = { ...imgData };
+        }
+        // If preparedInitialImage is uploaded, also reflect to characterImage
+        if (key === 'preparedInitialImage') {
+            SimpleVideoUI.state.characterImage = { ...imgData };
+        }
+
+        saveSimpleVideoState();
+        updateInternalImagesUI();
+        updateGenerateButtonState();
+
+        const LABELS = {
+            characterImage: 'キャラクター合成画像',
+            preparedInitialImage: '準備済み初期画像',
+        };
+        const label = LABELS[key] || key;
+        if (typeof showToast === 'function') showToast(`${label}をアップロードしました`, 'success');
+    } catch (err) {
+        console.error('[SimpleVideo] Internal image upload failed:', err);
+        if (typeof showToast === 'function') showToast('アップロードに失敗しました', 'error');
     }
 }
 
@@ -4811,6 +5716,7 @@ async function regenerateSingleSceneVideo(index) {
             preset,
             cancelSeqAtStart,
             allowLLMGeneration: false,
+            requireExistingPrompts: true,
         });
         const { width, height } = getEffectiveWH();
 
@@ -5431,6 +6337,10 @@ function selectPreset(presetId) {
             if (motionStrengthEl) {
                 try { motionStrengthEl.value = String(SimpleVideoUI.state.motionStrength || 'medium'); } catch (_e) {}
             }
+            const scenarioVariationEl = document.getElementById('simpleVideoScenarioVariation');
+            if (scenarioVariationEl) {
+                try { scenarioVariationEl.value = String(normalizeScenarioVariation(SimpleVideoUI.state.scenarioVariation)); } catch (_e) {}
+            }
             
             // Restore reference source select
             const refSourceVal = SimpleVideoUI.state.i2iRefSource || 'character';
@@ -5679,6 +6589,11 @@ function updateSimpleVideoUI() {
     const scenarioInput = document.getElementById('simpleVideoScenario');
     if (scenarioInput && state.scenario) {
         scenarioInput.value = state.scenario;
+    }
+
+    const scenarioIdeaInput = document.getElementById('simpleVideoScenarioIdea');
+    if (scenarioIdeaInput) {
+        scenarioIdeaInput.value = String(state.scenarioIdea || '');
     }
 
     // Restore LLM prompt output
@@ -5937,6 +6852,122 @@ function updateSimpleVideoUI() {
     updateCurrentReferenceHint();
     
     updateGenerateButtonState();
+    applySimpleVideoUILanguage();
+}
+
+function extractScenarioFromScenarioGenerateResult(p) {
+    const candidates = [
+        p?.result?.scenario,
+        p?.result?.scenario_text,
+        p?.scenario,
+        p?.scenario_text,
+        p?.result?.text,
+        p?.text,
+    ];
+    for (const c of candidates) {
+        if (typeof c === 'string' && c.trim().length > 0) return c.trim();
+    }
+    return null;
+}
+
+async function generateSimpleVideoScenarioFromIdea() {
+    const { state } = SimpleVideoUI;
+    if (state.isGenerating || state.isPromptGenerating) return;
+
+    const idea = String(state.scenarioIdea || '').trim();
+    if (!idea) {
+        if (typeof showToast === 'function') showToast('ざっくり意図を入力してください', 'warning');
+        return;
+    }
+
+    const api = window.app?.api;
+    if (!api || typeof api.generateUtility !== 'function' || typeof api.monitorProgress !== 'function') {
+        if (typeof showToast === 'function') showToast('APIが利用できません（app.api.generateUtility/monitorProgress）', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('simpleVideoScenarioBuildBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ 作成中...';
+        btn.style.opacity = '0.6';
+    }
+
+    const cancelSeqAtStart = Number(state.cancelSeq) || 0;
+    state.isPromptGenerating = true;
+    saveSimpleVideoState();
+    updateGenerateButtonState();
+    setSimpleVideoProgressVisible(true);
+    setSimpleVideoProgress('🧠 シナリオ作成: 準備中...', 0);
+
+    let jobId = null;
+    try {
+        const requestBody = {
+            workflow: 'scenario_generate',
+            user_prompt: idea,
+            prompt_complexity: normalizePromptComplexity(state.promptComplexity || 'standard'),
+            scene_variation: resolveScenarioVariationForCurrentPreset(),
+        };
+
+        const job = await api.generateUtility(requestBody);
+        jobId = job?.job_id;
+        if (!jobId) throw new Error('job_idが取得できません');
+
+        state.activeJobId = String(jobId);
+        saveSimpleVideoState();
+
+        const result = await new Promise((resolve, reject) => {
+            let done = false;
+            const finish = (fn) => (arg) => {
+                if (done) return;
+                done = true;
+                fn(arg);
+            };
+
+            api.monitorProgress(
+                jobId,
+                (p) => {
+                    if ((Number(state.cancelSeq) || 0) !== cancelSeqAtStart) {
+                        try { api.closeWebSocket?.(jobId); } catch (_e) {}
+                        finish(reject)(new Error('Cancelled'));
+                        return;
+                    }
+                    const local = Number(p?.progress) || 0;
+                    setSimpleVideoProgress(`🧠 シナリオ作成: ${p?.message || 'Processing...'}`, Math.min(1, Math.max(0, local)));
+                },
+                finish((data) => resolve(data)),
+                finish((err) => reject(err))
+            );
+        });
+
+        const scenarioText = extractScenarioFromScenarioGenerateResult(result);
+        if (!scenarioText) throw new Error('シナリオ生成結果の形式が不正です');
+
+        state.scenario = scenarioText;
+        clearSimpleVideoGeneratedPrompts();
+        invalidateGeneratedIntermediateImages();
+        saveSimpleVideoState();
+
+        const scenarioEl = document.getElementById('simpleVideoScenario');
+        if (scenarioEl) scenarioEl.value = scenarioText;
+
+        setSimpleVideoProgress('✅ シナリオを作成しました', 1);
+        if (typeof showToast === 'function') showToast('✅ シナリオを作成しました', 'success');
+    } catch (err) {
+        const msg = String(err?.message || err || 'シナリオ作成に失敗しました');
+        setSimpleVideoProgress(`❌ シナリオ作成失敗: ${msg}`, 1);
+        if (typeof showToast === 'function') showToast(`❌ ${msg}`, 'error');
+    } finally {
+        state.isPromptGenerating = false;
+        state.activeJobId = null;
+        saveSimpleVideoState();
+        updateGenerateButtonState();
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🧠 シナリオ作成';
+            btn.style.opacity = '1';
+        }
+    }
 }
 
 function updateCurrentReferenceHint() {
@@ -6043,16 +7074,22 @@ function updateInternalImagesUI() {
             const v = item.value;
             const hasImage = !!String(v?.filename || '').trim();
 
+            const uploadable = (item.key === 'characterImage' || item.key === 'preparedInitialImage');
+            const dropHint = uploadable ? ' data-uploadable="1"' : '';
+
             // ---- empty slot ----
             if (!hasImage) {
+                const emptyHint = uploadable
+                    ? `<div class="simple-video-internal-image-filename muted">（未生成・クリック/ドロップで画像アップロード）</div>`
+                    : `<div class="simple-video-internal-image-filename muted">（未生成）</div>`;
                 return `
-            <div class="simple-video-internal-image-item empty-slot" data-key="${escapeHtml(item.key)}">
+            <div class="simple-video-internal-image-item empty-slot" data-key="${escapeHtml(item.key)}"${dropHint}>
                 <div class="simple-video-internal-image-thumb-wrap empty">
                     <span class="simple-video-internal-image-empty-icon">${escapeHtml(item.icon)}</span>
                 </div>
                 <div class="simple-video-internal-image-info">
                     <div class="simple-video-internal-image-label">${escapeHtml(item.icon)} ${escapeHtml(item.label)}</div>
-                    <div class="simple-video-internal-image-filename muted">（未生成）</div>
+                    ${emptyHint}
                 </div>
             </div>`;
             }
@@ -6064,10 +7101,11 @@ function updateInternalImagesUI() {
             const promptSnippet = p
                 ? escapeHtml(p.length > 80 ? p.substring(0, 80) + '…' : p)
                 : '';
+            const thumbTitle = uploadable ? 'クリックで拡大 / ドロップで差し替え' : 'クリックで拡大';
 
             return `
-            <div class="simple-video-internal-image-item" data-key="${escapeHtml(item.key)}">
-                <div class="simple-video-internal-image-thumb-wrap" title="クリックで拡大">
+            <div class="simple-video-internal-image-item" data-key="${escapeHtml(item.key)}"${dropHint}>
+                <div class="simple-video-internal-image-thumb-wrap" title="${thumbTitle}">
                     <img class="simple-video-internal-image-thumb" src="${escapeHtml(imgUrl)}" alt="${escapeHtml(item.label)}" loading="eager" />
                 </div>
                 <div class="simple-video-internal-image-info">
@@ -7894,7 +8932,15 @@ async function startInitialImageGeneration() {
             primaryImage = characterImageFilenames[0];
         }
         // Remove background before generation if enabled
-        if (primaryImage) primaryImage = await removeBackgroundIfEnabled(primaryImage);
+        if (primaryImage) {
+            const beforeRemoveBg = String(primaryImage || '').trim();
+            primaryImage = await removeBackgroundIfEnabled(primaryImage);
+            const afterRemoveBg = String(primaryImage || '').trim();
+            if (beforeRemoveBg && afterRemoveBg && beforeRemoveBg !== afterRemoveBg) {
+                console.log(`[SimpleVideo] 背景削除適用: ${beforeRemoveBg} -> ${afterRemoveBg}`);
+                if (typeof showToast === 'function') showToast('背景削除済み画像を初期画像生成に適用しました', 'info');
+            }
+        }
         if (primaryImage) {
             params.input_image = primaryImage;
         }
@@ -8111,7 +9157,15 @@ async function startVideoInitialFrameGeneration() {
             params.height = height;
         }
         params.prompt = String(imagePrompt || basePrompt);
-        params.input_image = String(state.uploadedImage.filename);
+        let inputImageFilename = String(state.uploadedImage.filename);
+        const beforeRemoveBg = String(inputImageFilename || '').trim();
+        inputImageFilename = await removeBackgroundIfEnabled(inputImageFilename);
+        const afterRemoveBg = String(inputImageFilename || '').trim();
+        if (beforeRemoveBg && afterRemoveBg && beforeRemoveBg !== afterRemoveBg) {
+            console.log(`[SimpleVideo] 初期フレーム生成で背景削除適用: ${beforeRemoveBg} -> ${afterRemoveBg}`);
+            if (typeof showToast === 'function') showToast('背景削除済み画像を初期フレーム生成に適用しました', 'info');
+        }
+        params.input_image = inputImageFilename;
 
         if (isQwen2511ImageEditWorkflowId(workflow)) {
             params.prompt = wrapQwen2511EditInstructionPrompt(params.prompt);
@@ -8211,10 +9265,14 @@ async function startIntermediateImageGeneration(options = {}) {
         if (typeof showToast === 'function') showToast('シナリオを入力してください', 'warning');
         return;
     }
-    // For ext_i2i_i2v_scene_cut, key image is required
+    // For ext_i2i_i2v_scene_cut etc., key image is required — but character presets can use characterImage or dropSlots instead
     if (preset.requiresImage && !state.uploadedImage?.filename) {
-        if (typeof showToast === 'function') showToast('キー画像をドロップしてください', 'warning');
-        return;
+        const ds = Array.isArray(state.dropSlots) ? state.dropSlots : [];
+        const hasCharRef = preset.requiresCharacterImage && (state.characterImage?.filename || ds[0]?.filename);
+        if (!hasCharRef) {
+            if (typeof showToast === 'function') showToast('キー画像をドロップしてください', 'warning');
+            return;
+        }
     }
 
     state.isImageGenerating = true;
@@ -8231,6 +9289,7 @@ async function startIntermediateImageGeneration(options = {}) {
             preset,
             cancelSeqAtStart,
             allowLLMGeneration: !isTargetedRegeneration,
+            requireExistingPrompts: isTargetedRegeneration,
         });
         const sceneCount = Math.max(1, scenePrompts.length);
 
@@ -8896,15 +9955,31 @@ function parseScenePromptsFromText(text) {
     const raw = String(text || '');
     if (!raw.trim()) return [];
 
-    return raw
+    const lines = raw
         .split('\n')
         .map((line) => String(line || '').trim())
         .filter((line) => line.length > 0)
+        .map((line) => line.replace(/^[-・*]\s*/, '').trim());
+
+    const numbered = [];
+    for (const line of lines) {
+        const m = line.match(/^(?:#|＃)\s*(\d+)\s*[:：]?\s*(.*)$/);
+        if (!m) continue;
+        const n = Number(m[1]);
+        const body = String(m[2] || '').trim();
+        if (!Number.isFinite(n) || n <= 0 || !body) continue;
+        numbered.push({ n, body });
+    }
+
+    if (numbered.length > 0) {
+        numbered.sort((a, b) => a.n - b.n);
+        return numbered.map((v) => v.body);
+    }
+
+    return lines
         .map((line) => {
             let cleaned = line;
-            cleaned = cleaned.replace(/^[-・*]\s*/, '');
-            // Accept "#1: ..." and "#1 ..." (optional colon / full-width colon)
-            cleaned = cleaned.replace(/^#\d+\s*[:：]?\s*/, '');
+            cleaned = cleaned.replace(/^(?:#|＃)\s*\d+\s*[:：]?\s*/, '');
             return cleaned.trim();
         })
         .filter((line) => line.length > 0);
@@ -8945,9 +10020,12 @@ async function generateScenePromptsForCurrentSimpleVideoRun({ preset, cancelSeqA
     const targetWorkflow = preset ? pickTargetWorkflowForPromptGeneration(preset) : null;
     const promptProgressLabel = hasM2VOverride ? '🤖 プロンプト生成(M2V仕様)' : '🤖 プロンプト生成';
     // Map motionStrength to FLF motion level for prompt generation
-    const flfMotionLevel = outputType === 'flf_sequence'
-        ? (state.motionStrength || 'medium')
-        : null;
+    const flfMotionLevel = resolveFLFMotionLevelForPromptGeneration({
+        outputType,
+        motionStrength: state.motionStrength,
+        presetId: preset?.id,
+    });
+    const sceneVariation = resolveScenarioVariationForCurrentPreset();
 
     // If LLM is disabled, copy scenario text as-is to each scene.
     if (!state.scenarioUseLLM && !hasM2VOverride) {
@@ -8974,7 +10052,8 @@ async function generateScenePromptsForCurrentSimpleVideoRun({ preset, cancelSeqA
         user_prompt: String(simpleVideoM2VPromptOverride || scenarioPrompt),
         scene_count: sceneCount,
         output_type: outputType,
-            prompt_complexity: normalizePromptComplexity(state.promptComplexity),
+        prompt_complexity: normalizePromptComplexity(state.promptComplexity),
+        scene_variation: sceneVariation,
         translation_mode: false,
     };
     if (targetWorkflow) requestBody.target_workflow = targetWorkflow;
@@ -9342,12 +10421,75 @@ function syncGeneratedPromptsVisibility() {
     }
 }
 
+async function translateSimpleVideoImagePrompt() {
+    const el = document.getElementById('simpleVideoImagePrompt');
+    const btn = document.getElementById('simpleVideoImagePromptTranslateBtn');
+    const text = String(el?.value || '').trim();
+    if (!el || !text) {
+        if (typeof showToast === 'function') showToast('翻訳するプロンプトがありません', 'warning');
+        return;
+    }
+
+    const base = (window.app && window.app.api && window.app.api.baseURL)
+        ? window.app.api.baseURL
+        : (typeof baseURL !== 'undefined' ? baseURL : '');
+    if (!base) {
+        if (typeof showToast === 'function') showToast('API baseURL が取得できません', 'error');
+        return;
+    }
+
+    const hasJapanese = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(text);
+    const targetLang = hasJapanese ? 'English' : '日本語';
+    const targetLanguageParam = hasJapanese ? 'en' : 'ja';
+
+    if (btn) { btn.disabled = true; btn.textContent = '🔄...'; }
+
+    try {
+        const resp = await fetch(`${base}/api/v1/translate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, target_language: targetLanguageParam }),
+        });
+        if (!resp.ok) {
+            const t = await resp.text();
+            throw new Error(`HTTP ${resp.status}: ${t}`);
+        }
+        const data = await resp.json();
+        const out = String(data?.translated_text || '').trim();
+        if (!out) throw new Error('翻訳結果が空です');
+
+        el.value = out;
+        SimpleVideoUI.state.imagePrompt = out;
+        saveSimpleVideoState();
+        if (typeof showToast === 'function') showToast(`${targetLang}に翻訳しました`, 'success');
+    } catch (e) {
+        console.error('[SimpleVideo] translate image prompt failed:', e);
+        if (typeof showToast === 'function') showToast(`翻訳エラー: ${e.message || e}`, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🌐 翻訳'; }
+    }
+}
+
 async function translateSimpleVideoGeneratedPrompts(buttonId = 'simpleVideoScenarioTranslateBtn') {
     const llmPromptEl = document.getElementById('simpleVideoLLMPrompt');
+    const scenarioEl = document.getElementById('simpleVideoScenario');
     const btn = document.getElementById(buttonId);
-    const text = String(llmPromptEl?.value || '').trim();
-    if (!llmPromptEl || !text) {
-        if (typeof showToast === 'function') showToast('翻訳する生成プロンプトがありません', 'warning');
+
+    // Scenario-side translate button should work even before prompt generation.
+    // Priority:
+    // 1) scenario button -> translate scenario textarea if present
+    // 2) otherwise -> translate generated prompts textarea
+    const useScenarioText = (buttonId === 'simpleVideoScenarioTranslateBtn');
+    const targetEl = useScenarioText
+        ? (scenarioEl || llmPromptEl)
+        : llmPromptEl;
+    const text = String(targetEl?.value || '').trim();
+
+    if (!targetEl || !text) {
+        const msg = useScenarioText
+            ? '翻訳するシナリオがありません'
+            : '翻訳する生成プロンプトがありません';
+        if (typeof showToast === 'function') showToast(msg, 'warning');
         return;
     }
 
@@ -9382,9 +10524,15 @@ async function translateSimpleVideoGeneratedPrompts(buttonId = 'simpleVideoScena
         const out = String(data?.translated_text || '').trim();
         if (!out) throw new Error('翻訳結果が空です');
 
-        llmPromptEl.value = out;
-        SimpleVideoUI.state.llmPrompt = out;
-        syncGeneratedPromptsVisibility();
+        targetEl.value = out;
+        if (targetEl === scenarioEl) {
+            SimpleVideoUI.state.scenario = out;
+            clearSimpleVideoGeneratedPrompts();
+            invalidateGeneratedIntermediateImages();
+        } else {
+            SimpleVideoUI.state.llmPrompt = out;
+            syncGeneratedPromptsVisibility();
+        }
         saveSimpleVideoState();
         updateGenerateButtonState();
         if (typeof showToast === 'function') showToast(`${targetLang}に翻訳しました`, 'success');
@@ -10142,16 +11290,20 @@ async function runUtilityExtractLastFrame({ videoBasename, label, stepIndex, tot
     return { jobId, outputs };
 }
 
-async function determineScenePromptsForCurrentSimpleVideoRun({ preset, cancelSeqAtStart, allowLLMGeneration = true }) {
+async function determineScenePromptsForCurrentSimpleVideoRun({ preset, cancelSeqAtStart, allowLLMGeneration = true, requireExistingPrompts = false }) {
     const { state } = SimpleVideoUI;
     const desiredCount = Math.max(1, getEffectiveSceneCountForPromptGeneration());
     const forceRegenerate = !!simpleVideoForcePromptRegeneration;
+    const forceRegenerateForThisCall = forceRegenerate && !requireExistingPrompts;
 
     // Determine scene prompts:
     // - If LLM prompt box has numbered prompts, use them
     // - Otherwise auto-run prompt_generate like Full Auto Video
-    let scenePrompts = forceRegenerate ? [] : parseScenePromptsFromText(state.llmPrompt);
+    let scenePrompts = forceRegenerateForThisCall ? [] : parseScenePromptsFromText(state.llmPrompt);
     if (!scenePrompts || scenePrompts.length === 0) {
+        if (requireExistingPrompts) {
+            throw new Error('シーンごとのプロンプトが空です。指定シーン再生成の前に「シーンごとのプロンプト」を作成してください');
+        }
         if (state.scenarioUseLLM && allowLLMGeneration) {
             if (typeof showToast === 'function') showToast('🤖 シーンプロンプトを生成中...', 'info');
             scenePrompts = await generateScenePromptsForCurrentSimpleVideoRun({ preset, cancelSeqAtStart });
@@ -10180,11 +11332,21 @@ async function determineScenePromptsForCurrentSimpleVideoRun({ preset, cancelSeq
     }
 
     if (!scenePrompts || scenePrompts.length === 0) {
+        if (requireExistingPrompts) {
+            throw new Error('指定シーン再生成に必要なシーンプロンプトが見つかりません');
+        }
         scenePrompts = [String(state.scenario || '').trim()].filter(Boolean);
     }
 
     if (!scenePrompts || scenePrompts.length === 0) {
+        if (requireExistingPrompts) {
+            throw new Error('指定シーン再生成に必要なシーンプロンプトが不足しています');
+        }
         scenePrompts = ['scene'];
+    }
+
+    if (requireExistingPrompts && scenePrompts.length < desiredCount) {
+        throw new Error(`シーンごとのプロンプト数が不足しています（必要: ${desiredCount}, 現在: ${scenePrompts.length}）`);
     }
 
     if (scenePrompts.length !== desiredCount) {

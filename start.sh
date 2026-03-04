@@ -28,7 +28,9 @@ Options:
 			--comfyui-input PATH			ComfyUI input dir override (sets COMFYUI_INPUT_DIR)
 			--comfyui-output PATH			ComfyUI output dir override (sets COMFYUI_OUTPUT_DIR)
 			--openai-base-url URL			OpenAI-compatible endpoint (sets OPENAI_BASE_URL)
+			--openai-api-key KEY			OpenAI API key (sets OPENAI_API_KEY)
 			--vlm-base-url URL			VLM endpoint (sets VLM_BASE_URL)
+			--image-model 2512|2511			Image model variant (default: 2512)
 			--env-file PATH				Additional env file to load
 			--reload				Enable uvicorn reload (default)
 			--no-reload				Disable uvicorn reload
@@ -38,7 +40,9 @@ Examples:
 	./start.sh --host 0.0.0.0 --port 8090
 	./start.sh --comfyui-dir /home/user/ComfyUI
 	./start.sh --env-file ../.env --openai-base-url http://127.0.0.1:11434/v1
+	./start.sh --openai-api-key sk-xxxx
 	./start.sh --comfyui-server 127.0.0.1:8188 --no-reload
+	./start.sh --image-model 2511
 EOF
 }
 
@@ -86,8 +90,16 @@ while [ $# -gt 0 ]; do
 			export OPENAI_BASE_URL="${2:-}"
 			shift 2
 			;;
+		--openai-api-key)
+			export OPENAI_API_KEY="${2:-}"
+			shift 2
+			;;
 		--vlm-base-url)
 			export VLM_BASE_URL="${2:-}"
+			shift 2
+			;;
+		--image-model)
+			export SIMPLE_VIDEO_IMAGE_MODEL="${2:-}"
 			shift 2
 			;;
 		--env-file)
@@ -150,6 +162,9 @@ if [ -n "${OPENAI_BASE_URL:-}" ]; then
 fi
 if [ -n "${VLM_BASE_URL:-}" ]; then
 	echo "[simple_video_app] VLM_BASE_URL=$VLM_BASE_URL"
+fi
+if [ -n "${SIMPLE_VIDEO_IMAGE_MODEL:-}" ]; then
+	echo "[simple_video_app] IMAGE_MODEL=$SIMPLE_VIDEO_IMAGE_MODEL"
 fi
 
 exec "${CMD[@]}"

@@ -61,6 +61,24 @@
 
     const state = { currentDocKey: 'tutorial' };
 
+    const getHelpLang = () => {
+      const select = document.getElementById('simpleVideoLangSelect');
+      const fromSelect = String(select?.value || '').trim().toLowerCase();
+      if (fromSelect === 'en') return 'en';
+
+      try {
+        const saved = localStorage.getItem('simpleVideoState');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const fromState = String(parsed?.uiLanguage || '').trim().toLowerCase();
+          if (fromState === 'en') return 'en';
+        }
+      } catch (_e) {}
+
+      const htmlLang = String(document.documentElement?.lang || '').trim().toLowerCase();
+      return htmlLang.startsWith('en') ? 'en' : 'ja';
+    };
+
     const setTabActive = (docKey) => {
       const buttons = tabs?.querySelectorAll('.floating-guide-tab') || [];
       buttons.forEach((button) => {
@@ -76,7 +94,8 @@
       body.innerHTML = '<div class="floating-guide-loading">読み込み中...</div>';
       setTabActive(key);
 
-      const url = `${apiBase}/api/v1/simple-video/help/${encodeURIComponent(key)}`;
+      const lang = getHelpLang();
+      const url = `${apiBase}/api/v1/simple-video/help/${encodeURIComponent(key)}?lang=${encodeURIComponent(lang)}`;
       try {
         const res = await fetch(url, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -243,7 +262,9 @@
         return;
       }
 
-      const url = `${apiBase}/api/v1/simple-video/help`;
+      const langSelect = document.getElementById('simpleVideoLangSelect');
+      const lang = String(langSelect?.value || document.documentElement?.lang || 'ja').toLowerCase().startsWith('en') ? 'en' : 'ja';
+      const url = `${apiBase}/api/v1/simple-video/help?lang=${encodeURIComponent(lang)}`;
       window.open(url, '_blank', 'noopener');
     });
   }
