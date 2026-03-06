@@ -17,6 +17,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Auto-load .env files so that Windows users (who lack start.sh) get the same
+# environment variables.  python-dotenv is optional; if not installed we simply
+# skip.  On Linux with start.sh the .env is already sourced by the shell, so
+# calling load_dotenv() again is harmless (existing env vars take precedence).
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _env_file = Path(__file__).resolve().parent / ".env"
+    _parent_env = Path(__file__).resolve().parent.parent / ".env"
+    if _env_file.is_file():
+        _load_dotenv(_env_file, override=False)
+    if _parent_env.is_file():
+        _load_dotenv(_parent_env, override=False)
+except ImportError:
+    pass  # python-dotenv not installed – rely on shell/.env sourcing
+
 import requests
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -760,7 +775,7 @@ def _output_roots_for_item(item_type: str) -> list[Path]:
 
 def _find_existing_media_file(filename: str, subfolder: str = "", item_type: str = "output") -> Optional[Path]:
     safe_name = _safe_name(filename)
-    safe_sub = str(subfolder or "").strip("/")
+    safe_sub = str(subfolder or "").strip("/\\")
     for root in _output_roots_for_item(item_type):
         candidates = [root / safe_sub / safe_name] if safe_sub else []
         candidates.append(root / safe_name)
@@ -809,7 +824,7 @@ def _materialize_outputs_to_local_dir(outputs: list[Dict[str, Any]]) -> list[Dic
         filename = str(item.get("filename") or "").strip()
         if not filename:
             continue
-        subfolder = str(item.get("subfolder") or "").strip("/")
+        subfolder = str(item.get("subfolder") or "").strip("/\\")
         item_type = str(item.get("type") or "output")
         source = _find_existing_media_file(filename, subfolder, item_type)
         if source is not None:
@@ -950,7 +965,7 @@ def _resolve_media_path(file_ref: str, kind: str = "any") -> Path:
         raise FileNotFoundError("Empty file reference")
 
     cleaned = re.sub(r"\s*\[(output|input|temp)\]\s*$", "", raw, flags=re.IGNORECASE).strip()
-    rel = cleaned.strip("/")
+    rel = cleaned.strip("/\\")
     basename = Path(rel).name
 
     search_dirs: list[Path] = [
@@ -1851,7 +1866,7 @@ async def execute_utility_job(job: Job) -> Dict[str, Any]:
         video_paths = [await asyncio.to_thread(_resolve_media_path, item, "video") for item in videos]
         OUTPUT_DIR.joinpath("video").mkdir(parents=True, exist_ok=True)
         list_path = OUTPUT_DIR / "video" / f"concat_{job.job_id}.txt"
-        content = "".join([f"file '{str(p)}'\n" for p in video_paths])
+        content = "".join([f"file '{p.as_posix()}'\n" for p in video_paths])
         list_path.write_text(content, encoding="utf-8")
 
         fps = int(req.fps or 16)
@@ -2680,7 +2695,7 @@ def auth_check(next: Optional[str] = None):
 
 @app.get("/api/v1/files/{filename:path}")
 async def get_file(filename: str):
-    safe = filename.strip("/")
+    safe = filename.strip("/\\")
     search = _dedupe_paths([
         INPUT_DIR / safe,
         OUTPUT_DIR / safe,
@@ -2827,7 +2842,7 @@ async def delete_output_files(req: OutputFilesDeleteRequest):
 async def view_file(request: Request, filename: str, subfolder: str = "", type: str = "output"):
     _ = request
     safe_name = _safe_name(filename)
-    safe_sub = subfolder.strip("/")
+    safe_sub = subfolder.strip("/\\")
     path = _find_existing_media_file(safe_name, safe_sub, type)
     if path is None:
         raise HTTPException(status_code=404, detail=f"File not found: {filename}")
