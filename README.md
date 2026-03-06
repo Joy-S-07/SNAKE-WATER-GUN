@@ -88,6 +88,28 @@ Windows でもそのまま動作します。追加の変更は不要です。
 - （任意）シナリオ作成 / プロンプト生成 / 作詞 / 翻訳を使う場合は OpenAI互換API
     - 例: `OPENAI_BASE_URL`, `OPENAI_API_KEY`（必要に応じて `VLM_BASE_URL`, `VLM_API_KEY`）
 
+## VRAM 目安
+
+| VRAM | できること | 備考 |
+|------|-----------|------|
+| **12 GB** | T2I (FP8)、T2V (GGUF Q4/Q5 + offload)、T2A | I2V / FLF は OOM の可能性大 |
+| **16 GB** | 上記 ＋ I2V / FLF (FP8)、I2I Edit (BF16, 低解像度) | ComfyUI のモデル自動スワップにより実行可。高解像度 I2I Edit はメモリ不足になり得る |
+| **24 GB（推奨）** | すべての機能を快適に利用可能 | BF16 I2I Edit を高解像度で実行しても余裕あり |
+
+### モード別 VRAM 参考値
+
+| モード | モデル / 量子化 | 推定 VRAM |
+|--------|----------------|-----------|
+| T2I (Qwen 2512) | FP8 | 約 12–14 GB |
+| I2I Edit (Qwen 2511) | BF16 | 約 16–20 GB |
+| T2V (Wan2.2 14B) | GGUF Q4_0_K + CPU offload | 約 10–12 GB |
+| I2V (Wan2.2 14B) | FP8 | 約 16–18 GB |
+| FLF / I2V (Wan2.2 14B) | FP8 | 約 16–18 GB |
+| T2A (ACE-Step 1.5) | BF16 | 約 6–8 GB |
+| 背景除去 (RMBG) | FP32 | 約 1 GB |
+
+> **ディスク容量:** すべてのモデルをダウンロードすると約 **80–85 GB** のディスク容量が必要です。
+
 ## ダウンロードが必要なモデル
 
 以下は `simple_video_app` が既定で使用する workflow JSON に記載されているモデル名です。

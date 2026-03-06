@@ -88,6 +88,28 @@ Because all of this is available in one UI, you can produce image/video/music/mo
 - (Optional) OpenAI-compatible API if you use scenario generation / prompt generation / lyric generation / translation
   - Example: `OPENAI_BASE_URL`, `OPENAI_API_KEY` (and optionally `VLM_BASE_URL`, `VLM_API_KEY`)
 
+## VRAM Guidelines
+
+| VRAM | What you can run | Notes |
+|------|-----------------|-------|
+| **12 GB** | T2I (FP8), T2V (GGUF Q4/Q5 + offload), T2A | I2V / FLF likely to OOM |
+| **16 GB** | Above + I2V / FLF (FP8), I2I Edit (BF16, low res) | ComfyUI auto-swaps models to fit. High-res I2I Edit may run out of memory |
+| **24 GB (recommended)** | All features comfortably | BF16 I2I Edit at high resolution with headroom |
+
+### Per-mode VRAM Reference
+
+| Mode | Model / Quantization | Estimated VRAM |
+|------|---------------------|----------------|
+| T2I (Qwen 2512) | FP8 | ~12–14 GB |
+| I2I Edit (Qwen 2511) | BF16 | ~16–20 GB |
+| T2V (Wan2.2 14B) | GGUF Q4_0_K + CPU offload | ~10–12 GB |
+| I2V (Wan2.2 14B) | FP8 | ~16–18 GB |
+| FLF / I2V (Wan2.2 14B) | FP8 | ~16–18 GB |
+| T2A (ACE-Step 1.5) | BF16 | ~6–8 GB |
+| Background removal (RMBG) | FP32 | ~1 GB |
+
+> **Disk space:** downloading all models requires approximately **80–85 GB** of disk space.
+
 ## Required Models
 
 The model names below are referenced by the default workflow JSON files used in `simple_video_app`.
