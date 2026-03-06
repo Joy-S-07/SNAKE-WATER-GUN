@@ -20,7 +20,25 @@ Language: 日本語 | [English](./README_EN.md)
 
 1. ComfyUI を起動（既定: `127.0.0.1:8188`）
 2. 依存関係をインストール: `pip install -r requirements.txt`
-3. アプリ起動: `bash start.sh`（または `./start.sh`）
+3. アプリ起動:
+   - **Linux / macOS**: `bash start.sh`（または `./start.sh`）
+   - **Windows**: `start.bat`（コマンドプロンプトまたはダブルクリック）
+
+### Windows で使う場合
+
+Windows でもそのまま動作します。追加の変更は不要です。
+
+1. Python 3.10+ と `ffmpeg` を PATH に通しておく
+2. ComfyUI を起動する
+3. コマンドプロンプトまたは PowerShell でアプリフォルダに移動:
+   ```
+   cd C:\path\to\simple_video_app
+   pip install -r requirements.txt
+   start.bat
+   ```
+4. `.env` ファイルに環境変数を書いておけば自動で読み込まれます（`python-dotenv` 使用）
+
+`start.bat` は `start.sh` と同等のオプション（`--host`, `--port`, `--comfyui-server` 等）に対応しています。
 
 ## 機能概要
 

@@ -20,7 +20,25 @@ This document is focused on practical information for public repository users: s
 
 1. Start ComfyUI (default: `127.0.0.1:8188`)
 2. Install dependencies: `pip install -r requirements.txt`
-3. Start app: `bash start.sh` (or `./start.sh`)
+3. Start app:
+   - **Linux / macOS**: `bash start.sh` (or `./start.sh`)
+   - **Windows**: `start.bat` (Command Prompt or double-click)
+
+### Running on Windows
+
+The app works on Windows without any additional changes.
+
+1. Make sure Python 3.10+ and `ffmpeg` are on your PATH
+2. Start ComfyUI
+3. Open Command Prompt or PowerShell and navigate to the app folder:
+   ```
+   cd C:\path\to\simple_video_app
+   pip install -r requirements.txt
+   start.bat
+   ```
+4. Environment variables in `.env` files are loaded automatically (`python-dotenv`)
+
+`start.bat` supports the same options as `start.sh` (`--host`, `--port`, `--comfyui-server`, etc.).
 
 ## Feature Overview
 
