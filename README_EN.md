@@ -1,6 +1,6 @@
 # Simple Video Standalone
 
-Version: V0.9-Preview
+Version: v91.0
 
 License: [MIT](./LICENSE)
 
@@ -10,7 +10,7 @@ Language: [日本語](./README.md) | English
 
 This document is focused on practical information for public repository users: setup, run, usage, and limits.
 
-## Why V0.9-Preview
+## Why v91.0
 
 - **All-in-one flow**: image (T2I/I2I) -> video (T2V/I2V/FLF) -> music (T2A) -> merge (M2V/V2M)
 - **Faster prompt workflow**: 2-step flow (`🧠 Build Scenario` -> `🤖 Generate Prompts`)
